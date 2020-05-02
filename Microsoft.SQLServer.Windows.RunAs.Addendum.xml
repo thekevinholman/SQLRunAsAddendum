@@ -1,0 +1,679 @@
+﻿<?xml version="1.0" encoding="utf-8"?><ManagementPack ContentReadable="true" SchemaVersion="2.0" OriginalSchemaVersion="1.0" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+  <Manifest>
+    <Identity>
+      <ID>Microsoft.SQLServer.Windows.RunAs.Addendum</ID>
+      <Version>7.0.20.0</Version>
+    </Identity>
+    <Name>Microsoft.SQLServer.Windows.RunAs.Addendum</Name>
+    <References>
+      <Reference Alias="Windows">
+        <ID>Microsoft.Windows.Library</ID>
+        <Version>7.5.8501.0</Version>
+        <PublicKeyToken>31bf3856ad364e35</PublicKeyToken>
+      </Reference>
+      <Reference Alias="SC">
+        <ID>Microsoft.SystemCenter.Library</ID>
+        <Version>7.0.8433.0</Version>
+        <PublicKeyToken>31bf3856ad364e35</PublicKeyToken>
+      </Reference>
+      <Reference Alias="System">
+        <ID>System.Library</ID>
+        <Version>7.5.8501.0</Version>
+        <PublicKeyToken>31bf3856ad364e35</PublicKeyToken>
+      </Reference>	
+      <Reference Alias="Health">
+        <ID>System.Health.Library</ID>
+        <Version>7.0.8433.0</Version>
+        <PublicKeyToken>31bf3856ad364e35</PublicKeyToken>
+      </Reference>	  
+      <Reference Alias="MSCL">
+        <ID>Microsoft.SQLServer.Core.Library</ID>
+        <Version>7.0.20.0</Version>
+        <PublicKeyToken>31bf3856ad364e35</PublicKeyToken>
+      </Reference>
+      <Reference Alias="MSWD">
+        <ID>Microsoft.SQLServer.Windows.Discovery</ID>
+        <Version>7.0.20.0</Version>
+        <PublicKeyToken>31bf3856ad364e35</PublicKeyToken>
+      </Reference>
+    </References>
+  </Manifest>
+  <TypeDefinitions>
+    <ModuleTypes>
+      <WriteActionModuleType ID="Microsoft.SQLServer.Windows.RunAs.Addendum.SetHSServiceSidStateandRestart.WA" Accessibility="Internal" Batching="false">
+        <Configuration />
+        <ModuleImplementation Isolation="Any">
+          <Composite>
+            <MemberModules>
+              <WriteAction ID="PSWA" TypeID="Windows!Microsoft.Windows.PowerShellWriteAction">
+                <ScriptName>Microsoft.SQLServer.Windows.RunAs.Addendum.SetHSServiceSidStateandRestart.WA.ps1</ScriptName>
+                <ScriptBody>
+#=================================================================================
+#  Script to enable HealthServiceSID and Restart SCOM Agent
+#
+#  Author: Kevin Holman
+#  v1.2
+#=================================================================================
+
+
+# Constants section - modify stuff here:
+#=================================================================================
+# Assign script name variable for use in event logging.  
+$ScriptName = "Microsoft.SQLServer.Windows.RunAs.Addendum.SetHSServiceSidStateandRestart.WA.ps1"
+$EventID = "8700"
+#=================================================================================
+
+
+# Starting Script section - All scripts get this
+#=================================================================================
+#Set variable to be used in logging events
+$whoami = whoami
+# Load MOMScript API
+$momapi = New-Object -comObject MOM.ScriptAPI
+#=================================================================================
+
+
+# Begin MAIN script section
+#=================================================================================
+#Log script event that we are starting task
+$momapi.LogScriptEvent($ScriptName,$EventID,0,"`nScript is starting. `nRunning as ($whoami). `nAttempting to enable SID for Healthservice.")
+Write-Host "Script is starting. `nRunning as ($whoami). `nAttempting to enable SID for Healthservice."
+
+[string]$Command = "sc sidtype HealthService unrestricted"
+$ExecCommandOutput = cmd /c $Command
+$momapi.LogScriptEvent($ScriptName,$EventID,0,"`nOutput of attempt to configure HealthService SID Type is: ($ExecCommandOutput).  Restarting SCOM agent now...")
+Write-Host $ExecCommandOutput
+Write-Host "Restarting SCOM agent now..."
+#=================================================================================
+# End MAIN script section
+
+# Restart Agent
+#=================================================================================
+#We need a reliable way to restart the SCOM Agent out of band so that tasks can complete with success
+$Command = "Start-Sleep -s 5;Restart-Service HealthService"
+$Process = ([wmiclass]"root\cimv2:Win32_ProcessStartup").CreateInstance()
+$Process.ShowWindow = 0
+$Process.CreateFlags = 16777216
+([wmiclass]"root\cimv2:Win32_Process").Create("powershell.exe $Command")|Out-Null
+#=================================================================================		
+                </ScriptBody>
+                <TimeoutSeconds>120</TimeoutSeconds>
+              </WriteAction>
+            </MemberModules>
+            <Composition>
+              <Node ID="PSWA" />
+            </Composition>
+          </Composite>
+        </ModuleImplementation>
+        <OutputType>System!System.BaseData</OutputType>
+        <InputType>System!System.BaseData</InputType>
+      </WriteActionModuleType>
+      <WriteActionModuleType ID="Microsoft.SQLServer.Windows.RunAs.Addendum.HealthServiceAsSA.WA" Accessibility="Internal" Batching="false">
+        <Configuration>
+          <xsd:element minOccurs="1" name="SQLServer" type="xsd:string" xmlns:xsd="http://www.w3.org/2001/XMLSchema" />
+		  <xsd:element minOccurs="1" name="TcpPorts" type="xsd:string" xmlns:xsd="http://www.w3.org/2001/XMLSchema" />
+        </Configuration>
+        <OverrideableParameters>
+          <OverrideableParameter ID="SQLServer" Selector="$Config/SQLServer$" ParameterType="string" />
+          <OverrideableParameter ID="TcpPorts" Selector="$Config/TcpPorts$" ParameterType="string" />
+        </OverrideableParameters>		
+        <ModuleImplementation Isolation="Any">
+          <Composite>
+            <MemberModules>
+              <WriteAction ID="PSWA" TypeID="Windows!Microsoft.Windows.PowerShellWriteAction">
+                <ScriptName>Microsoft.SQLServer.Windows.RunAs.Addendum.HealthServiceAsSA.WA.ps1</ScriptName>
+                <ScriptBody>
+#=================================================================================
+#  Script to create SQL Login for HealthService and grant Sysadmin
+#
+#  Author: Kevin Holman
+#  v1.3
+#=================================================================================
+param([string]$SQLServer,[string]$TcpPorts)
+
+
+# Manual Testing section - put stuff here for manually testing script - typically parameters:
+#=================================================================================
+# [string]$SQLServer = "WS2012R2\INST1"
+# [string]$TcpPorts = "49304"
+#=================================================================================
+
+
+# Constants section - modify stuff here:
+#=================================================================================
+# Assign script name variable for use in event logging.  
+$ScriptName = "Microsoft.SQLServer.Windows.RunAs.Addendum.HealthServiceAsSA.WA.ps1"
+$EventID = "8701"
+
+[string]$SQLQuery = "sp_addsrvrolemember 'NT SERVICE\HealthService', 'sysadmin'"
+#=================================================================================
+
+
+# Starting Script section - All scripts get this
+#=================================================================================
+# Gather the start time of the script
+$StartTime = Get-Date
+#Set variable to be used in logging events
+$whoami = whoami
+# Load MOMScript API
+$momapi = New-Object -comObject MOM.ScriptAPI
+#Log script event that we are starting task
+$momapi.LogScriptEvent($ScriptName,$EventID,0,"`n Script is starting. `n Running as ($whoami).")
+#=================================================================================
+
+
+# Begin MAIN script section
+#=================================================================================
+Write-Host "Script is starting. `nRunning as ($whoami). `nSQLServer: ($SQLServer)."
+
+#Clear any previous errors
+IF($Error){$Error.Clear()}
+
+##### Begin Source SQL Query Section
+# Connect to SQL and then Query the database
+$SQLConnection = New-Object System.Data.SqlClient.SqlConnection
+$SQLConnection.ConnectionString = "Server=$SQLServer;Integrated Security=True"
+TRY
+{
+  Write-Host "Opening Connection using connect string: ($SQLServer)."
+  $SQLConnection.Open()
+}
+CATCH
+{
+  Write-Host "ERROR opening connection to: ($SQLServer).  Will Attempt using Name,Port"
+  IF ($SQLServer -match "\\")
+  {
+    #Drop the backslash and named instance
+    $SQLServer = ($SQLServer.Split("\"))[0]
+  }
+  #Use only the first port if passed a comma seperated list
+  IF ($TcpPorts -match ",")
+  {
+    $TcpPorts = ($TcpPorts.Split(","))[0]
+  }
+  #Make a new connect string with the port  
+  $SQLServer = $SQLServer + "," + $TcpPorts
+  #Connect attempt
+  TRY
+  {
+    Write-Host "Opening Connection using connect string: ($SQLServer)."
+    $SQLConnection.ConnectionString = "Server=$SQLServer;Integrated Security=True"
+    $SQLConnection.Open()
+  }
+  CATCH
+  {
+    Write-Host "ERROR opening connection to: ($SQLServer). `nTERMINATING. `nError is: ($Error)."
+    EXIT
+  }
+}
+
+#Clear any previous errors
+IF($Error){$Error.Clear()}   
+
+Write-Host "Connected to SQL Server: ($SQLServer). `nRunning SQL command to Create SQL Login and assign permissions for Healthservice."
+
+$SQLCmd = New-Object System.Data.SqlClient.SqlCommand
+$SQLCmd.CommandText = $SQLQuery
+$SQLCmd.Connection = $SQLConnection
+$SQLCmd.ExecuteNonQuery() | Out-Null
+$SQLConnection.Close()
+
+# Check for errors connecting to SQL
+IF ($Error)
+{
+  Write-Host "ERROR executing query on: ($SQLServer). `nTERMINATING. `nError is: ($Error)."
+  EXIT  
+}
+ELSE
+{
+  Write-Host "SUCCESS executing SQL command"
+}
+#=================================================================================
+# End MAIN script section
+
+
+# End of script section
+#=================================================================================
+#Log an event for script ending and total execution time.
+$EndTime = Get-Date
+$ScriptTime = ($EndTime - $StartTime).TotalSeconds
+$momapi.LogScriptEvent($ScriptName,$EventID,0,"`n Script Completed. `n Script Runtime: ($ScriptTime) seconds.")
+#=================================================================================
+# End of script
+                </ScriptBody>
+                <Parameters>
+                  <Parameter>
+                    <Name>SQLServer</Name>
+                    <Value>$Config/SQLServer$</Value>
+                  </Parameter>
+                  <Parameter>
+                    <Name>TcpPorts</Name>
+                    <Value>$Config/TcpPorts$</Value>
+                  </Parameter>				  
+                </Parameters>
+                <TimeoutSeconds>120</TimeoutSeconds>
+              </WriteAction>
+            </MemberModules>
+            <Composition>
+              <Node ID="PSWA" />
+            </Composition>
+          </Composite>
+        </ModuleImplementation>
+        <OutputType>System!System.BaseData</OutputType>
+        <InputType>System!System.BaseData</InputType>
+      </WriteActionModuleType>
+      <WriteActionModuleType ID="Microsoft.SQLServer.Windows.RunAs.Addendum.HealthServiceLowPriv.WA" Accessibility="Internal" Batching="false">
+        <Configuration>
+          <xsd:element minOccurs="1" name="SQLServer" type="xsd:string" xmlns:xsd="http://www.w3.org/2001/XMLSchema" />
+          <xsd:element minOccurs="1" name="TcpPorts" type="xsd:string" xmlns:xsd="http://www.w3.org/2001/XMLSchema" />		  
+        </Configuration>
+        <OverrideableParameters>
+          <OverrideableParameter ID="SQLServer" Selector="$Config/SQLServer$" ParameterType="string" />
+          <OverrideableParameter ID="TcpPorts" Selector="$Config/TcpPorts$" ParameterType="string" />
+        </OverrideableParameters>		
+        <ModuleImplementation Isolation="Any">
+          <Composite>
+            <MemberModules>
+              <WriteAction ID="PSWA" TypeID="Windows!Microsoft.Windows.PowerShellWriteAction">
+                <ScriptName>Microsoft.SQLServer.Windows.RunAs.Addendum.HealthServiceLowPriv.WA.ps1</ScriptName>
+                <ScriptBody>
+#=================================================================================
+#  Script to create SQL Login for HealthService and grant Low Priv
+#
+#  Author: Kevin Holman
+#  v1.3
+#=================================================================================
+param([string]$SQLServer,[string]$TcpPorts)
+
+
+# Manual Testing section - put stuff here for manually testing script - typically parameters:
+#=================================================================================
+# [string]$SQLServer = "WS2012R2\INST1"
+# [string]$TcpPorts = "49304"
+#=================================================================================
+
+
+# Constants section - modify stuff here:
+#=================================================================================
+# Assign script name variable for use in event logging.  
+$ScriptName = "Microsoft.SQLServer.Windows.RunAs.Addendum.HealthServiceLowPriv.WA.ps1"
+$EventID = "8702"
+
+[string]$SQLQuery = "USE [master];
+SET NOCOUNT ON;
+DECLARE @accountname sysname = 'NT SERVICE\HealthService';
+-- Create the server role and grant instance level permissions
+CREATE SERVER ROLE [SCOM_HealthService];
+GRANT VIEW ANY DATABASE TO [SCOM_HealthService];
+--GRANT ALTER ANY DATABASE TO [SCOM_HealthService]; --Required only for SCOMDB tasks
+GRANT VIEW ANY DEFINITION TO [SCOM_HealthService];
+GRANT VIEW SERVER STATE TO [SCOM_HealthService];
+DECLARE @createLoginCommand nvarchar(200);
+SET @createLoginCommand = ' CREATE LOGIN '+ QUOTENAME(@accountname) +' FROM WINDOWS WITH DEFAULT_DATABASE=[master];'
+EXEC(@createLoginCommand);
+-- Add the login to the user defined server role 
+EXEC sp_addsrvrolemember @loginame = @accountname, @rolename = 'SCOM_HealthService' 
+-- Add the login and database role to each database
+DECLARE @createDatabaseUserAndRole nvarchar(max) SET @createDatabaseUserAndRole = ''; 
+SELECT @createDatabaseUserAndRole = @createDatabaseUserAndRole + ' USE ' + QUOTENAME(db.name) + '; CREATE USER ' + QUOTENAME(@accountname) + ' FOR LOGIN ' + QUOTENAME(@accountname) + '; CREATE ROLE [SCOM_HealthService]; EXEC sp_addrolemember @rolename = ''SCOM_HealthService'', @membername = '+ QUOTENAME(@accountname) + '' 
+  -- 'ALTER ROLE [SCOM_HealthService] ADD MEMBER ' + QUOTENAME(@accountname) + ';' 
+  FROM sys.databases db  
+  LEFT JOIN sys.dm_hadr_availability_replica_states hadrstate ON db.replica_id = hadrstate.replica_id  
+  WHERE db.database_id != 2 AND db.user_access = 0 AND db.state = 0 AND db.is_read_only = 0 AND (hadrstate.role = 1 or hadrstate.role IS NULL); 
+EXEC(@createDatabaseUserAndRole) 
+-- Add database specific permissions to database role
+USE [master]; 
+GRANT EXECUTE ON sys.xp_readerrorlog TO [SCOM_HealthService]
+GRANT SELECT ON sys.database_mirroring_witnesses TO [SCOM_HealthService];
+USE [msdb]; 
+GRANT SELECT ON [dbo].[sysjobschedules] TO [SCOM_HealthService]; 
+GRANT SELECT ON [dbo].[sysschedules] TO [SCOM_HealthService]; 
+GRANT SELECT ON [dbo].[sysjobs_view] TO [SCOM_HealthService]; 
+GRANT SELECT ON [dbo].[log_shipping_primary_databases] TO [SCOM_HealthService]; 
+GRANT SELECT ON [dbo].[log_shipping_secondary_databases] TO [SCOM_HealthService]; 
+GRANT SELECT ON [dbo].[log_shipping_monitor_history_detail] TO [SCOM_HealthService]; 
+GRANT SELECT ON [dbo].[log_shipping_monitor_secondary] TO [SCOM_HealthService]; 
+GRANT SELECT ON [dbo].[log_shipping_monitor_primary] TO [SCOM_HealthService]; 
+GRANT EXECUTE ON [dbo].[sp_help_job] TO [SCOM_HealthService]; 
+GRANT EXECUTE ON [dbo].[sp_help_jobactivity] TO [SCOM_HealthService]; 
+EXEC sp_addrolemember @rolename='SQLAgentReaderRole', @membername='SCOM_HealthService';
+EXEC sp_addrolemember @rolename='PolicyAdministratorRole', @membername='SCOM_HealthService';"
+#=================================================================================
+
+
+# Starting Script section - All scripts get this
+#=================================================================================
+# Gather the start time of the script
+$StartTime = Get-Date
+#Set variable to be used in logging events
+$whoami = whoami
+# Load MOMScript API
+$momapi = New-Object -comObject MOM.ScriptAPI
+#Log script event that we are starting task
+$momapi.LogScriptEvent($ScriptName,$EventID,0,"`n Script is starting. `n Running as ($whoami).")
+#=================================================================================
+
+
+# Begin MAIN script section
+#=================================================================================
+Write-Host "Script is starting. `nRunning as ($whoami). `nSQLServer: ($SQLServer)."
+
+#Clear any previous errors
+IF($Error){$Error.Clear()}
+
+##### Begin Source SQL Query Section
+# Connect to SQL and then Query the database
+$SQLConnection = New-Object System.Data.SqlClient.SqlConnection
+$SQLConnection.ConnectionString = "Server=$SQLServer;Integrated Security=True"
+TRY
+{
+  Write-Host "Opening Connection using connect string: ($SQLServer)."
+  $SQLConnection.Open()
+}
+CATCH
+{
+  Write-Host "ERROR opening connection to: ($SQLServer).  Will Attempt using Name,Port"
+  IF ($SQLServer -match "\\")
+  {
+    #Drop the backslash and named instance
+    $SQLServer = ($SQLServer.Split("\"))[0]
+  }
+  #Use only the first port if passed a comma seperated list
+  IF ($TcpPorts -match ",")
+  {
+    $TcpPorts = ($TcpPorts.Split(","))[0]
+  }
+  #Make a new connect string with the port  
+  $SQLServer = $SQLServer + "," + $TcpPorts
+  #Connect attempt
+  TRY
+  {
+    Write-Host "Opening Connection using connect string: ($SQLServer)."
+    $SQLConnection.ConnectionString = "Server=$SQLServer;Integrated Security=True"
+    $SQLConnection.Open()
+  }
+  CATCH
+  {
+    Write-Host "ERROR opening connection to: ($SQLServer). `nTERMINATING. `nError is: ($Error)."
+    EXIT
+  }
+}
+
+#Clear any previous errors
+IF($Error){$Error.Clear()}   
+
+Write-Host "Connected to SQL Server: ($SQLServer). `nRunning SQL command to Create SQL Login and assign permissions for Healthservice."
+
+$SQLCmd = New-Object System.Data.SqlClient.SqlCommand
+$SQLCmd.CommandText = $SQLQuery
+$SQLCmd.Connection = $SQLConnection
+$SQLCmd.ExecuteNonQuery() | Out-Null
+$SQLConnection.Close()
+
+# Check for errors connecting to SQL
+IF ($Error)
+{
+  Write-Host "ERROR executing query on: ($SQLServer). `nTERMINATING. `nError is: ($Error)."
+  EXIT  
+}
+ELSE
+{
+  Write-Host "SUCCESS executing SQL command"
+}
+#=================================================================================
+# End MAIN script section
+
+
+# End of script section
+#=================================================================================
+#Log an event for script ending and total execution time.
+$EndTime = Get-Date
+$ScriptTime = ($EndTime - $StartTime).TotalSeconds
+$momapi.LogScriptEvent($ScriptName,$EventID,0,"`n Script Completed. `n Script Runtime: ($ScriptTime) seconds.")
+#=================================================================================
+# End of script															
+                </ScriptBody>
+                <Parameters>
+                  <Parameter>
+                    <Name>SQLServer</Name>
+                    <Value>$Config/SQLServer$</Value>
+                  </Parameter>
+                  <Parameter>
+                    <Name>TcpPorts</Name>
+                    <Value>$Config/TcpPorts$</Value>
+                  </Parameter>				  
+                </Parameters>
+                <TimeoutSeconds>120</TimeoutSeconds>
+              </WriteAction>
+            </MemberModules>
+            <Composition>
+              <Node ID="PSWA" />
+            </Composition>
+          </Composite>
+        </ModuleImplementation>
+        <OutputType>System!System.BaseData</OutputType>
+        <InputType>System!System.BaseData</InputType>
+      </WriteActionModuleType>
+    </ModuleTypes>
+    <MonitorTypes>
+      <UnitMonitorType ID="Microsoft.SQLServer.Windows.RunAs.Addendum.MissingSidTypeRegistry.MonitorType" Accessibility="Internal">
+        <MonitorTypeStates>
+          <MonitorTypeState ID="RegValueBad" NoDetection="false" />
+          <MonitorTypeState ID="RegValueGood" NoDetection="false" />
+        </MonitorTypeStates>
+        <Configuration />
+        <MonitorImplementation>
+          <MemberModules>
+            <DataSource ID="RegDS" TypeID="Windows!Microsoft.Windows.RegistryProvider">
+              <ComputerName>$Target/Host/Property[Type="Windows!Microsoft.Windows.Computer"]/NetworkName$</ComputerName>
+              <RegistryAttributeDefinitions>
+                <RegistryAttributeDefinition>
+                  <AttributeName>ServiceSidType</AttributeName>
+                  <Path>SYSTEM\CurrentControlSet\Services\HealthService\ServiceSidType</Path>
+                  <PathType>1</PathType>
+                  <AttributeType>2</AttributeType>
+                </RegistryAttributeDefinition>
+              </RegistryAttributeDefinitions>
+              <Frequency>60</Frequency>
+            </DataSource>
+            <ConditionDetection ID="CDGood" TypeID="System!System.ExpressionFilter">
+              <Expression>
+                <SimpleExpression>
+                  <ValueExpression>
+                    <XPathQuery Type="Integer">Values/ServiceSidType</XPathQuery>
+                  </ValueExpression>
+                  <Operator>Equal</Operator>
+                  <ValueExpression>
+                    <Value Type="Integer">1</Value>
+                  </ValueExpression>
+                </SimpleExpression>
+              </Expression>
+            </ConditionDetection>
+            <ConditionDetection ID="CDBad" TypeID="System!System.ExpressionFilter">
+              <Expression>
+                <SimpleExpression>
+                  <ValueExpression>
+                    <XPathQuery Type="Integer">Values/ServiceSidType</XPathQuery>
+                  </ValueExpression>
+                  <Operator>NotEqual</Operator>
+                  <ValueExpression>
+                    <Value Type="Integer">1</Value>
+                  </ValueExpression>
+                </SimpleExpression>
+              </Expression>
+            </ConditionDetection>
+          </MemberModules>
+          <RegularDetections>
+            <RegularDetection MonitorTypeStateID="RegValueBad">
+              <Node ID="CDBad">
+                <Node ID="RegDS" />
+              </Node>
+            </RegularDetection>
+            <RegularDetection MonitorTypeStateID="RegValueGood">
+              <Node ID="CDGood">
+                <Node ID="RegDS" />
+              </Node>
+            </RegularDetection>
+          </RegularDetections>
+        </MonitorImplementation>
+      </UnitMonitorType>
+    </MonitorTypes>
+  </TypeDefinitions>
+  <Monitoring>
+    <Tasks>
+      <Task ID="Microsoft.SQLServer.Windows.RunAs.Addendum.HealthServiceAsSA.Task" Accessibility="Internal" Enabled="true" Target="MSWD!Microsoft.SQLServer.Windows.DBEngine" Timeout="300" Remotable="true">
+        <Category>Maintenance</Category>
+        <WriteAction ID="HealthServiceAsSA.Task.WA" TypeID="Microsoft.SQLServer.Windows.RunAs.Addendum.HealthServiceAsSA.WA">
+          <SQLServer>$Target/Property[Type="MSCL!Microsoft.SQLServer.Core.DBEngine"]/ConnectionString$</SQLServer>
+		  <TcpPorts>$Target/Property[Type="MSWD!Microsoft.SQLServer.Windows.DBEngine"]/TcpPorts$</TcpPorts>
+        </WriteAction>
+      </Task>
+      <Task ID="Microsoft.SQLServer.Windows.RunAs.Addendum.HealthServiceLowPriv.Task" Accessibility="Internal" Enabled="true" Target="MSWD!Microsoft.SQLServer.Windows.DBEngine" Timeout="300" Remotable="true">
+        <Category>Maintenance</Category>
+        <WriteAction ID="HealthServiceLowPriv.Task.WA" TypeID="Microsoft.SQLServer.Windows.RunAs.Addendum.HealthServiceLowPriv.WA">
+          <SQLServer>$Target/Property[Type="MSCL!Microsoft.SQLServer.Core.DBEngine"]/ConnectionString$</SQLServer>
+		  <TcpPorts>$Target/Property[Type="MSWD!Microsoft.SQLServer.Windows.DBEngine"]/TcpPorts$</TcpPorts>
+        </WriteAction>
+      </Task>
+      <Task ID="Microsoft.SQLServer.Windows.RunAs.Addendum.HealthServiceSidTypeAndRestart.Task" Accessibility="Internal" Enabled="true" Target="MSWD!Microsoft.SQLServer.Windows.LocalDiscoverySeed" Timeout="300" Remotable="true">
+        <Category>Maintenance</Category>
+        <WriteAction ID="HealthServiceSidTypeAndRestart.Task.WA" TypeID="Microsoft.SQLServer.Windows.RunAs.Addendum.SetHSServiceSidStateandRestart.WA" />
+      </Task>
+    </Tasks>
+    <Monitors>
+      <UnitMonitor ID="Microsoft.SQLServer.Windows.RunAs.Addendum.MissingSidTypeRegistry.Monitor" Accessibility="Public" Enabled="true" Target="MSWD!Microsoft.SQLServer.Windows.LocalDiscoverySeed" ParentMonitorID="Health!System.Health.ConfigurationState" Remotable="false" Priority="Normal" TypeID="Microsoft.SQLServer.Windows.RunAs.Addendum.MissingSidTypeRegistry.MonitorType" ConfirmDelivery="true">
+        <Category>Custom</Category>
+        <AlertSettings AlertMessage="Microsoft.SQLServer.Windows.RunAs.Addendum.MissingSidTypeRegistry.Monitor.AlertMessage">
+          <AlertOnState>Warning</AlertOnState>
+          <AutoResolve>true</AutoResolve>
+          <AlertPriority>Normal</AlertPriority>
+          <AlertSeverity>Warning</AlertSeverity>
+          <AlertParameters>
+            <AlertParameter1>$Target/Host/Property[Type="Windows!Microsoft.Windows.Computer"]/PrincipalName$</AlertParameter1>
+          </AlertParameters>
+        </AlertSettings>
+        <OperationalStates>
+          <OperationalState ID="OK" MonitorTypeStateID="RegValueGood" HealthState="Success" />
+          <OperationalState ID="Error" MonitorTypeStateID="RegValueBad" HealthState="Warning" />
+        </OperationalStates>
+        <Configuration />
+      </UnitMonitor>
+    </Monitors>
+    <Recoveries>
+      <Recovery ID="Microsoft.SQLServer.Windows.RunAs.Addendum.SetHSServiceSidStateandRestart.Recovery" Accessibility="Public" Enabled="false" Target="MSWD!Microsoft.SQLServer.Windows.LocalDiscoverySeed" Monitor="Microsoft.SQLServer.Windows.RunAs.Addendum.MissingSidTypeRegistry.Monitor" ResetMonitor="false" ExecuteOnState="Warning" Remotable="true" Timeout="120">
+        <Category>Custom</Category>
+        <WriteAction ID="SetHSServiceSidStateandRestart.WA" TypeID="Microsoft.SQLServer.Windows.RunAs.Addendum.SetHSServiceSidStateandRestart.WA" />
+      </Recovery>
+    </Recoveries>
+    <Overrides>
+      <MonitorPropertyOverride ID="Microsoft.SQLServer.Windows.RunAs.Addendum.MissingSidTypeRegistry.Monitor.OverrideForContextMicrosoftSQLServerWindowsLocalDiscoverySeed" Context="MSWD!Microsoft.SQLServer.Windows.LocalDiscoverySeed" Enforced="false" Monitor="Microsoft.SQLServer.Windows.RunAs.Addendum.MissingSidTypeRegistry.Monitor" Property="GenerateAlert">
+        <Value>false</Value>
+      </MonitorPropertyOverride>
+    </Overrides>
+  </Monitoring>
+  <Presentation>
+    <Views>
+      <View ID="Microsoft.SQLServer.Windows.RunAs.Addendum.Seed.State.View" Accessibility="Public" Enabled="true" Target="MSWD!Microsoft.SQLServer.Windows.LocalDiscoverySeed" TypeID="SC!Microsoft.SystemCenter.StateViewType" Visible="true">
+        <Category>Operations</Category>
+        <Criteria>
+          <InMaintenanceMode>false</InMaintenanceMode>
+        </Criteria>
+        <Presentation />
+        <Target />
+      </View>
+      <View ID="Microsoft.SQLServer.Windows.RunAs.Addendum.Engine.State.View" Accessibility="Public" Enabled="true" Target="MSWD!Microsoft.SQLServer.Windows.DBEngine" TypeID="SC!Microsoft.SystemCenter.StateViewType" Visible="true">
+        <Category>Operations</Category>
+        <Criteria>
+          <InMaintenanceMode>false</InMaintenanceMode>
+        </Criteria>
+        <Presentation />
+        <Target />
+      </View>
+    </Views>
+    <Folders>
+      <Folder ID="Microsoft.SQLServer.Windows.RunAs.Addendum.Root.Folder" Accessibility="Public" ParentFolder="SC!Microsoft.SystemCenter.Monitoring.ViewFolder.Root" />
+    </Folders>
+    <FolderItems>
+      <FolderItem ElementID="Microsoft.SQLServer.Windows.RunAs.Addendum.Seed.State.View" ID="Microsoft.SQLServer.Windows.RunAs.Addendum.Seed.State.View" Folder="Microsoft.SQLServer.Windows.RunAs.Addendum.Root.Folder" />
+      <FolderItem ElementID="Microsoft.SQLServer.Windows.RunAs.Addendum.Engine.State.View" ID="Microsoft.SQLServer.Windows.RunAs.Addendum.Engine.State.View" Folder="Microsoft.SQLServer.Windows.RunAs.Addendum.Root.Folder" />
+    </FolderItems>
+    <StringResources>
+      <StringResource ID="Microsoft.SQLServer.Windows.RunAs.Addendum.MissingSidTypeRegistry.Monitor.AlertMessage" />
+    </StringResources>
+  </Presentation>
+  <LanguagePacks>
+    <LanguagePack ID="ENU" IsDefault="true">
+      <DisplayStrings>
+        <DisplayString ElementID="Microsoft.SQLServer.Windows.RunAs.Addendum">
+          <Name>Microsoft SQL Server on Windows RunAs Addendum Management Pack</Name>
+          <Description>Microsoft SQL Server on Windows RunAs Addendum Management Pack</Description>
+        </DisplayString>
+        <DisplayString ElementID="Microsoft.SQLServer.Windows.RunAs.Addendum.Root.Folder">
+          <Name>Microsoft SQL Server RunAs Config</Name>
+        </DisplayString>
+        <DisplayString ElementID="Microsoft.SQLServer.Windows.RunAs.Addendum.HealthServiceSidTypeAndRestart.Task">
+          <Name>Enable HealthService SID and Restart Agent Task</Name>
+        </DisplayString>
+        <DisplayString ElementID="Microsoft.SQLServer.Windows.RunAs.Addendum.HealthServiceAsSA.Task">
+          <Name>Create HealthService Login as SysAdmin Task</Name>
+        </DisplayString>
+        <DisplayString ElementID="Microsoft.SQLServer.Windows.RunAs.Addendum.HealthServiceLowPriv.Task">
+          <Name>Create HealthService Login as Low Priv Task</Name>
+        </DisplayString>
+        <DisplayString ElementID="Microsoft.SQLServer.Windows.RunAs.Addendum.MissingSidTypeRegistry.Monitor">
+          <Name>HealthService SID is Enabled Monitor</Name>
+        </DisplayString>
+        <DisplayString ElementID="Microsoft.SQLServer.Windows.RunAs.Addendum.MissingSidTypeRegistry.Monitor" SubElementID="OK">
+          <Name>RegValueGood</Name>
+        </DisplayString>
+        <DisplayString ElementID="Microsoft.SQLServer.Windows.RunAs.Addendum.MissingSidTypeRegistry.Monitor" SubElementID="Error">
+          <Name>RegValueBad</Name>
+        </DisplayString>
+        <DisplayString ElementID="Microsoft.SQLServer.Windows.RunAs.Addendum.SetHSServiceSidStateandRestart.Recovery">
+          <Name>Configure HealthService SID and Restart Agent Script Recovery</Name>
+        </DisplayString>
+        <DisplayString ElementID="Microsoft.SQLServer.Windows.RunAs.Addendum.Seed.State.View">
+          <Name>SQL Seed Class</Name>
+        </DisplayString>
+        <DisplayString ElementID="Microsoft.SQLServer.Windows.RunAs.Addendum.Engine.State.View">
+          <Name>SQL DB Engine on Windows</Name>
+        </DisplayString>
+        <DisplayString ElementID="Microsoft.SQLServer.Windows.RunAs.Addendum.MissingSidTypeRegistry.Monitor.AlertMessage">
+          <Name>SQL RunAs HealthService SID is not enabled</Name>
+          <Description>A SQL Server installation was discovered on {0} however the SCOM agent Healthservice SID has not been enabled.  Please run the "Enable HealthService SID" task, or enable the recovery on this monitor to resolve this.
+
+For more details, see:  https://kevinholman.com/2016/08/25/sql-mp-run-as-accounts-no-longer-required/
+
+</Description>
+        </DisplayString>
+        <DisplayString ElementID="Microsoft.SQLServer.Windows.RunAs.Addendum.MissingSidTypeRegistry.Monitor.OverrideForContextMicrosoftSQLServerWindowsLocalDiscoverySeed">
+          <Name>NotUsed</Name>
+          <Description>Disabling alerting by default.  Customers may delete this override if they wish to see alerts for this monitor.  If customers seal the addendum MP, then an override in an unsealed MP will take precedence over this override.</Description>
+        </DisplayString>
+      </DisplayStrings>
+      <KnowledgeArticles>
+        <KnowledgeArticle ElementID="Microsoft.SQLServer.Windows.RunAs.Addendum.MissingSidTypeRegistry.Monitor" Visible="true">
+          <MamlContent>
+            <maml:section xmlns:maml="http://schemas.microsoft.com/maml/2004/10" xmlns:fo="http://www.w3.org/1999/XSL/Format" xmlns:wx="http://schemas.microsoft.com/office/word/2003/auxHint" xmlns:w="http://schemas.microsoft.com/office/word/2003/wordml" xmlns:ns0="http://tempuri.org/XMLSchema1.xsd" xmlns:aml="http://schemas.microsoft.com/aml/2001/core" xmlns:wpc="http://schemas.microsoft.com/office/word/2010/wordprocessingCanvas" xmlns:cx="http://schemas.microsoft.com/office/drawing/2014/chartex" xmlns:cx1="http://schemas.microsoft.com/office/drawing/2015/9/8/chartex" xmlns:cx2="http://schemas.microsoft.com/office/drawing/2015/10/21/chartex" xmlns:dt="uuid:C2F41010-65B3-11d1-A29F-00AA00C14882" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w10="urn:schemas-microsoft-com:office:word" xmlns:wne="http://schemas.microsoft.com/office/word/2006/wordml" xmlns:wsp="http://schemas.microsoft.com/office/word/2003/wordml/sp2">
+              <maml:title>Summary</maml:title>
+              <maml:para>This monitor checks the registry for the HealthService to see if it is configured to enable a service SID.</maml:para>
+              <maml:para>The monitor targets the SQL seed class, and will change to an unhealthy state when the HealthService is not enabled for service SID.</maml:para>
+            </maml:section>
+            <maml:section xmlns:maml="http://schemas.microsoft.com/maml/2004/10" xmlns:fo="http://www.w3.org/1999/XSL/Format" xmlns:wx="http://schemas.microsoft.com/office/word/2003/auxHint" xmlns:w="http://schemas.microsoft.com/office/word/2003/wordml" xmlns:ns0="http://tempuri.org/XMLSchema1.xsd" xmlns:aml="http://schemas.microsoft.com/aml/2001/core" xmlns:wpc="http://schemas.microsoft.com/office/word/2010/wordprocessingCanvas" xmlns:cx="http://schemas.microsoft.com/office/drawing/2014/chartex" xmlns:cx1="http://schemas.microsoft.com/office/drawing/2015/9/8/chartex" xmlns:cx2="http://schemas.microsoft.com/office/drawing/2015/10/21/chartex" xmlns:dt="uuid:C2F41010-65B3-11d1-A29F-00AA00C14882" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w10="urn:schemas-microsoft-com:office:word" xmlns:wne="http://schemas.microsoft.com/office/word/2006/wordml" xmlns:wsp="http://schemas.microsoft.com/office/word/2003/wordml/sp2">
+              <maml:title>Configuration</maml:title>
+              <maml:para>The monitor inspects HKLM\SYSTEM\CurrentControlSet\Services\HealthService\ServiceSidType and expect it to be present and have a value of "1" </maml:para>
+            </maml:section>
+            <maml:section xmlns:maml="http://schemas.microsoft.com/maml/2004/10" xmlns:fo="http://www.w3.org/1999/XSL/Format" xmlns:wx="http://schemas.microsoft.com/office/word/2003/auxHint" xmlns:w="http://schemas.microsoft.com/office/word/2003/wordml" xmlns:ns0="http://tempuri.org/XMLSchema1.xsd" xmlns:aml="http://schemas.microsoft.com/aml/2001/core" xmlns:wpc="http://schemas.microsoft.com/office/word/2010/wordprocessingCanvas" xmlns:cx="http://schemas.microsoft.com/office/drawing/2014/chartex" xmlns:cx1="http://schemas.microsoft.com/office/drawing/2015/9/8/chartex" xmlns:cx2="http://schemas.microsoft.com/office/drawing/2015/10/21/chartex" xmlns:dt="uuid:C2F41010-65B3-11d1-A29F-00AA00C14882" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w10="urn:schemas-microsoft-com:office:word" xmlns:wne="http://schemas.microsoft.com/office/word/2006/wordml" xmlns:wsp="http://schemas.microsoft.com/office/word/2003/wordml/sp2">
+              <maml:title>Resolutions</maml:title>
+              <maml:para>Run the task "Enable HealthService SidState and Restart HealthService Task" to enable the HealthService SID, or enable the optional recovery task to automate this process.</maml:para>
+            </maml:section>
+            <maml:section xmlns:maml="http://schemas.microsoft.com/maml/2004/10" xmlns:fo="http://www.w3.org/1999/XSL/Format" xmlns:wx="http://schemas.microsoft.com/office/word/2003/auxHint" xmlns:w="http://schemas.microsoft.com/office/word/2003/wordml" xmlns:ns0="http://tempuri.org/XMLSchema1.xsd" xmlns:aml="http://schemas.microsoft.com/aml/2001/core" xmlns:wpc="http://schemas.microsoft.com/office/word/2010/wordprocessingCanvas" xmlns:cx="http://schemas.microsoft.com/office/drawing/2014/chartex" xmlns:cx1="http://schemas.microsoft.com/office/drawing/2015/9/8/chartex" xmlns:cx2="http://schemas.microsoft.com/office/drawing/2015/10/21/chartex" xmlns:dt="uuid:C2F41010-65B3-11d1-A29F-00AA00C14882" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w10="urn:schemas-microsoft-com:office:word" xmlns:wne="http://schemas.microsoft.com/office/word/2006/wordml" xmlns:wsp="http://schemas.microsoft.com/office/word/2003/wordml/sp2">
+              <maml:title>External</maml:title>
+              <maml:para>https://kevinholman.com/2016/08/25/sql-mp-run-as-accounts-no-longer-required/</maml:para>
+            </maml:section>
+          </MamlContent>
+        </KnowledgeArticle>
+      </KnowledgeArticles>
+    </LanguagePack>
+  </LanguagePacks>
+</ManagementPack>
