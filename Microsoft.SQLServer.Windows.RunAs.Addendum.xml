@@ -2,7 +2,7 @@
   <Manifest>
     <Identity>
       <ID>Microsoft.SQLServer.Windows.RunAs.Addendum</ID>
-      <Version>7.0.20.0</Version>
+      <Version>7.0.20.1</Version>
     </Identity>
     <Name>Microsoft.SQLServer.Windows.RunAs.Addendum</Name>
     <References>
@@ -40,6 +40,71 @@
   </Manifest>
   <TypeDefinitions>
     <ModuleTypes>
+      <DataSourceModuleType ID="Microsoft.SQLServer.Windows.RunAs.Addendum.RegularDetection.DataSourceModuleType" Accessibility="Internal" Batching="false">
+        <Configuration>
+          <xsd:element minOccurs="1" name="IntervalSeconds" type="xsd:integer" />
+        </Configuration>
+        <ModuleImplementation Isolation="Any">
+          <Composite>
+            <MemberModules>
+              <DataSource ID="DS" TypeID="System!System.SimpleScheduler">
+                <IntervalSeconds>$Config/IntervalSeconds$</IntervalSeconds>
+                <SyncTime />
+              </DataSource>
+              <ProbeAction ID="PA" TypeID="Microsoft.SQLServer.Windows.RunAs.Addendum.MissingSidTypeRegistry.ProbeActionModuleType" />
+            </MemberModules>
+            <Composition>
+              <Node ID="PA">
+                <Node ID="DS" />
+              </Node>
+            </Composition>
+          </Composite>
+        </ModuleImplementation>
+        <OutputType>Windows!Microsoft.Windows.RegistryData</OutputType>
+      </DataSourceModuleType>
+      <ProbeActionModuleType ID="Microsoft.SQLServer.Windows.RunAs.Addendum.MissingSidTypeRegistry.ProbeActionModuleType" Accessibility="Internal" Batching="false" PassThrough="false">
+        <Configuration />
+        <ModuleImplementation Isolation="Any">
+          <Composite>
+            <MemberModules>
+              <ProbeAction ID="RP" TypeID="Windows!Microsoft.Windows.RegistryProbe">
+                <ComputerName />
+                <RegistryAttributeDefinitions>
+                  <RegistryAttributeDefinition>
+                    <AttributeName>ServiceSidType</AttributeName>
+                    <Path>SYSTEM\CurrentControlSet\Services\HealthService\ServiceSidType</Path>
+                    <PathType>1</PathType>
+                    <AttributeType>2</AttributeType>
+                  </RegistryAttributeDefinition>
+                </RegistryAttributeDefinitions>
+              </ProbeAction>
+            </MemberModules>
+            <Composition>
+              <Node ID="RP" />
+            </Composition>
+          </Composite>
+        </ModuleImplementation>
+        <OutputType>Windows!Microsoft.Windows.RegistryData</OutputType>
+        <InputType>System!System.BaseData</InputType>
+      </ProbeActionModuleType>
+      <ProbeActionModuleType ID="Microsoft.SQLServer.Windows.RunAs.Addendum.OnDemandDetection.ProbeActionModuleType" Accessibility="Internal" Batching="false" PassThrough="false">
+        <Configuration />
+        <ModuleImplementation Isolation="Any">
+          <Composite>
+            <MemberModules>
+              <ProbeAction ID="PTP" TypeID="System!System.PassThroughProbe" />
+              <ProbeAction ID="PA" TypeID="Microsoft.SQLServer.Windows.RunAs.Addendum.MissingSidTypeRegistry.ProbeActionModuleType" />
+            </MemberModules>
+            <Composition>
+              <Node ID="PA">
+                <Node ID="PTP" />
+              </Node>
+            </Composition>
+          </Composite>
+        </ModuleImplementation>
+        <OutputType>Windows!Microsoft.Windows.RegistryData</OutputType>
+        <TriggerOnly>true</TriggerOnly>
+      </ProbeActionModuleType>	
       <WriteActionModuleType ID="Microsoft.SQLServer.Windows.RunAs.Addendum.SetHSServiceSidStateandRestart.WA" Accessibility="Internal" Batching="false">
         <Configuration />
         <ModuleImplementation Isolation="Any">
@@ -458,63 +523,69 @@ $momapi.LogScriptEvent($ScriptName,$EventID,0,"`n Script Completed. `n Script Ru
     <MonitorTypes>
       <UnitMonitorType ID="Microsoft.SQLServer.Windows.RunAs.Addendum.MissingSidTypeRegistry.MonitorType" Accessibility="Internal">
         <MonitorTypeStates>
-          <MonitorTypeState ID="RegValueBad" NoDetection="false" />
-          <MonitorTypeState ID="RegValueGood" NoDetection="false" />
+          <MonitorTypeState ID="RegistryValuePresent" NoDetection="false" />
+          <MonitorTypeState ID="RegistryValueMissing" NoDetection="false" />
         </MonitorTypeStates>
-        <Configuration />
+        <Configuration>
+          <xsd:element minOccurs="1" name="IntervalSeconds" type="xsd:integer" />
+        </Configuration>
         <MonitorImplementation>
           <MemberModules>
-            <DataSource ID="RegDS" TypeID="Windows!Microsoft.Windows.RegistryProvider">
-              <ComputerName>$Target/Host/Property[Type="Windows!Microsoft.Windows.Computer"]/NetworkName$</ComputerName>
-              <RegistryAttributeDefinitions>
-                <RegistryAttributeDefinition>
-                  <AttributeName>ServiceSidType</AttributeName>
-                  <Path>SYSTEM\CurrentControlSet\Services\HealthService\ServiceSidType</Path>
-                  <PathType>1</PathType>
-                  <AttributeType>2</AttributeType>
-                </RegistryAttributeDefinition>
-              </RegistryAttributeDefinitions>
-              <Frequency>60</Frequency>
+            <DataSource ID="DS" TypeID="Microsoft.SQLServer.Windows.RunAs.Addendum.RegularDetection.DataSourceModuleType">
+              <IntervalSeconds>$Config/IntervalSeconds$</IntervalSeconds>
             </DataSource>
-            <ConditionDetection ID="CDGood" TypeID="System!System.ExpressionFilter">
+            <ProbeAction ID="PA" TypeID="Microsoft.SQLServer.Windows.RunAs.Addendum.OnDemandDetection.ProbeActionModuleType" />
+            <ConditionDetection ID="EFHealthy" TypeID="System!System.ExpressionFilter">
               <Expression>
                 <SimpleExpression>
                   <ValueExpression>
-                    <XPathQuery Type="Integer">Values/ServiceSidType</XPathQuery>
+                    <XPathQuery Type="String">Values/ServiceSidType</XPathQuery>
                   </ValueExpression>
                   <Operator>Equal</Operator>
                   <ValueExpression>
-                    <Value Type="Integer">1</Value>
+                    <Value Type="String">1</Value>
                   </ValueExpression>
                 </SimpleExpression>
               </Expression>
             </ConditionDetection>
-            <ConditionDetection ID="CDBad" TypeID="System!System.ExpressionFilter">
+            <ConditionDetection ID="EFWarning" TypeID="System!System.ExpressionFilter">
               <Expression>
                 <SimpleExpression>
                   <ValueExpression>
-                    <XPathQuery Type="Integer">Values/ServiceSidType</XPathQuery>
+                    <XPathQuery Type="String">Values/ServiceSidType</XPathQuery>
                   </ValueExpression>
                   <Operator>NotEqual</Operator>
                   <ValueExpression>
-                    <Value Type="Integer">1</Value>
+                    <Value Type="String">1</Value>
                   </ValueExpression>
                 </SimpleExpression>
               </Expression>
             </ConditionDetection>
           </MemberModules>
           <RegularDetections>
-            <RegularDetection MonitorTypeStateID="RegValueBad">
-              <Node ID="CDBad">
-                <Node ID="RegDS" />
+            <RegularDetection MonitorTypeStateID="RegistryValuePresent">
+              <Node ID="EFHealthy">
+                <Node ID="DS" />
               </Node>
             </RegularDetection>
-            <RegularDetection MonitorTypeStateID="RegValueGood">
-              <Node ID="CDGood">
-                <Node ID="RegDS" />
+            <RegularDetection MonitorTypeStateID="RegistryValueMissing">
+              <Node ID="EFWarning">
+                <Node ID="DS" />
               </Node>
             </RegularDetection>
           </RegularDetections>
+          <OnDemandDetections>
+            <OnDemandDetection MonitorTypeStateID="RegistryValuePresent">
+              <Node ID="EFHealthy">
+                <Node ID="PA" />
+              </Node>
+            </OnDemandDetection>
+            <OnDemandDetection MonitorTypeStateID="RegistryValueMissing">
+              <Node ID="EFWarning">
+                <Node ID="PA" />
+              </Node>
+            </OnDemandDetection>
+          </OnDemandDetections>
         </MonitorImplementation>
       </UnitMonitorType>
     </MonitorTypes>
@@ -553,10 +624,12 @@ $momapi.LogScriptEvent($ScriptName,$EventID,0,"`n Script Completed. `n Script Ru
           </AlertParameters>
         </AlertSettings>
         <OperationalStates>
-          <OperationalState ID="OK" MonitorTypeStateID="RegValueGood" HealthState="Success" />
-          <OperationalState ID="Error" MonitorTypeStateID="RegValueBad" HealthState="Warning" />
+          <OperationalState ID="RegistryValuePresent" MonitorTypeStateID="RegistryValuePresent" HealthState="Success" />
+          <OperationalState ID="RegistryValueMissing" MonitorTypeStateID="RegistryValueMissing" HealthState="Warning" />
         </OperationalStates>
-        <Configuration />
+        <Configuration>
+          <IntervalSeconds>43200</IntervalSeconds>
+        </Configuration>
       </UnitMonitor>
     </Monitors>
     <Recoveries>
@@ -623,11 +696,11 @@ $momapi.LogScriptEvent($ScriptName,$EventID,0,"`n Script Completed. `n Script Ru
         <DisplayString ElementID="Microsoft.SQLServer.Windows.RunAs.Addendum.MissingSidTypeRegistry.Monitor">
           <Name>HealthService SID is Enabled Monitor</Name>
         </DisplayString>
-        <DisplayString ElementID="Microsoft.SQLServer.Windows.RunAs.Addendum.MissingSidTypeRegistry.Monitor" SubElementID="OK">
-          <Name>RegValueGood</Name>
+        <DisplayString ElementID="Microsoft.SQLServer.Windows.RunAs.Addendum.MissingSidTypeRegistry.Monitor" SubElementID="RegistryValuePresent">
+          <Name>HealthService SID Registry Value Present</Name>
         </DisplayString>
-        <DisplayString ElementID="Microsoft.SQLServer.Windows.RunAs.Addendum.MissingSidTypeRegistry.Monitor" SubElementID="Error">
-          <Name>RegValueBad</Name>
+        <DisplayString ElementID="Microsoft.SQLServer.Windows.RunAs.Addendum.MissingSidTypeRegistry.Monitor" SubElementID="RegistryValueMissing">
+          <Name>HealthService SID Registry Value Missing</Name>
         </DisplayString>
         <DisplayString ElementID="Microsoft.SQLServer.Windows.RunAs.Addendum.SetHSServiceSidStateandRestart.Recovery">
           <Name>Configure HealthService SID and Restart Agent Script Recovery</Name>
