@@ -13,21 +13,4 @@ Updated SQL 2012+ script to remove ALTER ANY DATABASE right, and add SELECT on s
 * Version 7.0.15.1
 Fixed MP dependencies to support SCOM 2012R2
 * Version 7.0.15.0
-Added support for the SQL Version Agnostic MP for SQL 2012 and later.
-Dropped support for SQL 2008 (can still use the older RunAs addendump MP's for that version
-* Version 7.0.0.0
-Added support for SQL 2017+ and simplified monitor and task names.
-* Version 6.7.31.0
-Disabled Monitor for SysAdmin role check by default
-Updated SQL Low Priv configuration tasks to be more reliable
-* Version 6.7.7.2
-Updated addendum views to fall under regular SQL presentation views
-* Version 6.7.7.1
-Bug fixes for LOW PRIV script task to support offline DB's, read only, always ON, etc.
-* Version 6.7.2.0
-Added support for SQL 2016
-Added additional monitors to check for ability to connect to SQL and sysadmin role check
-Removed any alerting by default.
-Added new task to configure Healthservice login for LOW PRIV to SQL
-Added folders, and state views to ease configuration and running tasks
-* Version 6.6.4.0 – Original release of the addendum MP’s
+Original release of the addendum for the SQL Version Agnostic MP for SQL 2012 and later.
