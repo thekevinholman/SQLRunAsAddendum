@@ -1,5 +1,10 @@
 # SQLRunAsAddendum 7.0.20.1
-SCOM - SQL Server RunAs Addendum - Management Pack
+
+## [Download Here][Download]
+
+[Download]: https://github.com/thekevinholman/SCOM.Management/releases/download/10.19.10407.3/SCOM.Management.10.19.10407.3.zip
+
+SQL Server RunAs Addendum Management Pack for SCOM
 
 https://kevinholman.com/2016/08/25/sql-mp-run-as-accounts-no-longer-required/
 
