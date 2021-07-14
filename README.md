@@ -8,6 +8,9 @@ SQL Server RunAs Addendum Management Pack for SCOM
 
 https://kevinholman.com/2016/08/25/sql-mp-run-as-accounts-no-longer-required/
 
+* Version 7.0.32.0
+Updated SQL 2012+ script to add new requirements on MSDB database for SQL Agent Job discovery required for 7.0.32.0 of the SQL MP
+Changed frequency of Healthservice SID is Enabled Monitor from 43200 seconds to 14400 seconds based on feedback
 * Version 7.0.20.1
 Changed frequency of Healthservice SID is Enabled Monitor from 60 seconds to 43200 seconds.
 Added On-Demand recalculate capability to Healthservice SID is Enabled Monitor
