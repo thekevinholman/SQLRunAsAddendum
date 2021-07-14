@@ -1,8 +1,8 @@
-# SQLRunAsAddendum 7.0.20.1
+# SQLRunAsAddendum 7.0.32.0
 
 ## [Download Here][Download]
 
-[Download]: https://github.com/thekevinholman/SQLRunAsAddendum/archive/7.0.20.1.zip
+[Download]: https://github.com/thekevinholman/SQLRunAsAddendum/archive/refs/heads/master.zip
 
 SQL Server RunAs Addendum Management Pack for SCOM
 
