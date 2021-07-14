@@ -2,7 +2,7 @@
   <Manifest>
     <Identity>
       <ID>Microsoft.SQLServer.Windows.RunAs.Addendum</ID>
-      <Version>7.0.20.1</Version>
+      <Version>7.0.32.0</Version>
     </Identity>
     <Name>Microsoft.SQLServer.Windows.RunAs.Addendum</Name>
     <References>
@@ -394,6 +394,7 @@ USE [msdb];
 GRANT SELECT ON [dbo].[sysjobschedules] TO [SCOM_HealthService]; 
 GRANT SELECT ON [dbo].[sysschedules] TO [SCOM_HealthService]; 
 GRANT SELECT ON [dbo].[sysjobs_view] TO [SCOM_HealthService]; 
+GRANT SELECT ON [dbo].[syscategories] TO [SCOM_HealthService];
 GRANT SELECT ON [dbo].[log_shipping_primary_databases] TO [SCOM_HealthService]; 
 GRANT SELECT ON [dbo].[log_shipping_secondary_databases] TO [SCOM_HealthService]; 
 GRANT SELECT ON [dbo].[log_shipping_monitor_history_detail] TO [SCOM_HealthService]; 
@@ -401,6 +402,7 @@ GRANT SELECT ON [dbo].[log_shipping_monitor_secondary] TO [SCOM_HealthService];
 GRANT SELECT ON [dbo].[log_shipping_monitor_primary] TO [SCOM_HealthService]; 
 GRANT EXECUTE ON [dbo].[sp_help_job] TO [SCOM_HealthService]; 
 GRANT EXECUTE ON [dbo].[sp_help_jobactivity] TO [SCOM_HealthService]; 
+GRANT EXECUTE ON [dbo].[SQLAGENT_SUSER_SNAME] TO [SCOM_HealthService];
 EXEC sp_addrolemember @rolename='SQLAgentReaderRole', @membername='SCOM_HealthService';
 EXEC sp_addrolemember @rolename='PolicyAdministratorRole', @membername='SCOM_HealthService';"
 #=================================================================================
@@ -628,7 +630,7 @@ $momapi.LogScriptEvent($ScriptName,$EventID,0,"`n Script Completed. `n Script Ru
           <OperationalState ID="RegistryValueMissing" MonitorTypeStateID="RegistryValueMissing" HealthState="Warning" />
         </OperationalStates>
         <Configuration>
-          <IntervalSeconds>43200</IntervalSeconds>
+          <IntervalSeconds>14400</IntervalSeconds>
         </Configuration>
       </UnitMonitor>
     </Monitors>
