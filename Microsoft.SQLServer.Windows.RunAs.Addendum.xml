@@ -2,7 +2,7 @@
   <Manifest>
     <Identity>
       <ID>Microsoft.SQLServer.Windows.RunAs.Addendum</ID>
-      <Version>7.0.32.0</Version>
+      <Version>7.0.36.0</Version>
     </Identity>
     <Name>Microsoft.SQLServer.Windows.RunAs.Addendum</Name>
     <References>
@@ -20,12 +20,12 @@
         <ID>System.Library</ID>
         <Version>7.5.8501.0</Version>
         <PublicKeyToken>31bf3856ad364e35</PublicKeyToken>
-      </Reference>	
+      </Reference>	  
       <Reference Alias="Health">
         <ID>System.Health.Library</ID>
         <Version>7.0.8433.0</Version>
         <PublicKeyToken>31bf3856ad364e35</PublicKeyToken>
-      </Reference>	  
+      </Reference>
       <Reference Alias="MSCL">
         <ID>Microsoft.SQLServer.Core.Library</ID>
         <Version>7.0.20.0</Version>
@@ -42,7 +42,7 @@
     <ModuleTypes>
       <DataSourceModuleType ID="Microsoft.SQLServer.Windows.RunAs.Addendum.RegularDetection.DataSourceModuleType" Accessibility="Internal" Batching="false">
         <Configuration>
-          <xsd:element minOccurs="1" name="IntervalSeconds" type="xsd:integer" />
+          <xsd:element minOccurs="1" name="IntervalSeconds" type="xsd:integer" xmlns:xsd="http://www.w3.org/2001/XMLSchema" />
         </Configuration>
         <ModuleImplementation Isolation="Any">
           <Composite>
@@ -104,7 +104,7 @@
         </ModuleImplementation>
         <OutputType>Windows!Microsoft.Windows.RegistryData</OutputType>
         <TriggerOnly>true</TriggerOnly>
-      </ProbeActionModuleType>	
+      </ProbeActionModuleType>
       <WriteActionModuleType ID="Microsoft.SQLServer.Windows.RunAs.Addendum.SetHSServiceSidStateandRestart.WA" Accessibility="Internal" Batching="false">
         <Configuration />
         <ModuleImplementation Isolation="Any">
@@ -176,12 +176,12 @@ $Process.CreateFlags = 16777216
       <WriteActionModuleType ID="Microsoft.SQLServer.Windows.RunAs.Addendum.HealthServiceAsSA.WA" Accessibility="Internal" Batching="false">
         <Configuration>
           <xsd:element minOccurs="1" name="SQLServer" type="xsd:string" xmlns:xsd="http://www.w3.org/2001/XMLSchema" />
-		  <xsd:element minOccurs="1" name="TcpPorts" type="xsd:string" xmlns:xsd="http://www.w3.org/2001/XMLSchema" />
+          <xsd:element minOccurs="1" name="TcpPorts" type="xsd:string" xmlns:xsd="http://www.w3.org/2001/XMLSchema" />
         </Configuration>
         <OverrideableParameters>
           <OverrideableParameter ID="SQLServer" Selector="$Config/SQLServer$" ParameterType="string" />
           <OverrideableParameter ID="TcpPorts" Selector="$Config/TcpPorts$" ParameterType="string" />
-        </OverrideableParameters>		
+        </OverrideableParameters>
         <ModuleImplementation Isolation="Any">
           <Composite>
             <MemberModules>
@@ -314,7 +314,7 @@ $momapi.LogScriptEvent($ScriptName,$EventID,0,"`n Script Completed. `n Script Ru
                   <Parameter>
                     <Name>TcpPorts</Name>
                     <Value>$Config/TcpPorts$</Value>
-                  </Parameter>				  
+                  </Parameter>
                 </Parameters>
                 <TimeoutSeconds>120</TimeoutSeconds>
               </WriteAction>
@@ -330,12 +330,12 @@ $momapi.LogScriptEvent($ScriptName,$EventID,0,"`n Script Completed. `n Script Ru
       <WriteActionModuleType ID="Microsoft.SQLServer.Windows.RunAs.Addendum.HealthServiceLowPriv.WA" Accessibility="Internal" Batching="false">
         <Configuration>
           <xsd:element minOccurs="1" name="SQLServer" type="xsd:string" xmlns:xsd="http://www.w3.org/2001/XMLSchema" />
-          <xsd:element minOccurs="1" name="TcpPorts" type="xsd:string" xmlns:xsd="http://www.w3.org/2001/XMLSchema" />		  
+          <xsd:element minOccurs="1" name="TcpPorts" type="xsd:string" xmlns:xsd="http://www.w3.org/2001/XMLSchema" />
         </Configuration>
         <OverrideableParameters>
           <OverrideableParameter ID="SQLServer" Selector="$Config/SQLServer$" ParameterType="string" />
           <OverrideableParameter ID="TcpPorts" Selector="$Config/TcpPorts$" ParameterType="string" />
-        </OverrideableParameters>		
+        </OverrideableParameters>
         <ModuleImplementation Isolation="Any">
           <Composite>
             <MemberModules>
@@ -508,8 +508,184 @@ $momapi.LogScriptEvent($ScriptName,$EventID,0,"`n Script Completed. `n Script Ru
                   <Parameter>
                     <Name>TcpPorts</Name>
                     <Value>$Config/TcpPorts$</Value>
-                  </Parameter>				  
+                  </Parameter>
                 </Parameters>
+                <TimeoutSeconds>120</TimeoutSeconds>
+              </WriteAction>
+            </MemberModules>
+            <Composition>
+              <Node ID="PSWA" />
+            </Composition>
+          </Composite>
+        </ModuleImplementation>
+        <OutputType>System!System.BaseData</OutputType>
+        <InputType>System!System.BaseData</InputType>
+      </WriteActionModuleType>
+      <WriteActionModuleType ID="Microsoft.SQLServer.Windows.RunAs.Addendum.RepairSQLWMIMofcomp.WA" Accessibility="Internal" Batching="false">
+        <Configuration />
+        <ModuleImplementation Isolation="Any">
+          <Composite>
+            <MemberModules>
+              <WriteAction ID="PSWA" TypeID="Windows!Microsoft.Windows.PowerShellWriteAction">
+                <ScriptName>Microsoft.SQLServer.Windows.RunAs.Addendum.RepairSQLWMIMofcomp.WA.ps1</ScriptName>
+                <ScriptBody>
+#=================================================================================
+#  Repair SQL WMI namespace using MOFCOMP for SQL 2008 - SQL 2019
+#  Script will attempt to loop through all known versions of SQL preset and repair WMI.
+#
+#  Author: Kevin Holman
+#  v1.0
+#=================================================================================
+
+
+# Constants section - modify stuff here:
+#=================================================================================
+# Assign script name variable for use in event logging.  
+# ScriptName should be the same as the ID of the module that the script is contained in
+$ScriptName = "SQLWMIRepair.ps1"
+$EventID = "4545"
+#=================================================================================
+
+
+# Starting Script section - All scripts get this
+#=================================================================================
+# Gather the start time of the script
+$StartTime = Get-Date
+#Set variable to be used in logging events
+$whoami = whoami
+# Load MOMScript API
+$momapi = New-Object -comObject MOM.ScriptAPI
+#Log script event that we are starting task
+$momapi.LogScriptEvent($ScriptName,$EventID,0,"`nScript is starting. `nRunning as ($whoami).")
+#=================================================================================
+
+
+# Begin MAIN script section
+#=================================================================================
+$ProgramFilesx86 = Get-ChildItem Env:"ProgramFiles(x86)"
+$ProgramFilesx86Path = $ProgramFilesx86.Value
+
+#Set variables to false
+$Recompile = $false
+
+IF (Test-Path $ProgramFilesx86Path)
+{
+  #Test for SQL 2008
+  $SQL2008MOFPath = "$ProgramFilesx86Path\Microsoft SQL Server\100\Shared\sqlmgmproviderxpsp2up.mof"
+  $SQL2008MOF = Test-Path $SQL2008MOFPath
+  IF ($SQL2008MOF)
+  {
+    Write-Host "`nSQL 2008 MOF File Found."
+    $Recompile = $true
+    Write-Host "`nStopping WMI service..."
+    Stop-Service winmgmt -force
+    Write-Host "`nAttempting MOF Recompile using mofcomp..."
+    $momapi.LogScriptEvent($ScriptName,$EventID,0,"`nSQL MOF file found at ($SQL2008MOFPath). `nMofcomp will execute to repair WMI namespace.")
+    mofcomp $SQL2008MOFPath
+  }
+
+  #Test for SQL 2012
+  $SQL2012MOFPath = "$ProgramFilesx86Path\Microsoft SQL Server\110\Shared\sqlmgmproviderxpsp2up.mof"
+  $SQL2012MOF = Test-Path $SQL2012MOFPath
+  IF ($SQL2012MOF)
+  {
+    Write-Host "`nSQL 2012 MOF File Found."
+    $Recompile = $true
+    Write-Host "`nStopping WMI service..."
+    Stop-Service winmgmt -force
+    Write-Host "`nAttempting MOF Recompile using mofcomp..."
+    $momapi.LogScriptEvent($ScriptName,$EventID,0,"`nSQL MOF file found at ($SQL2012MOFPath). `nMofcomp will execute to repair WMI namespace.")
+    mofcomp $SQL2012MOFPath
+  }
+
+  #Test for SQL 2014
+  $SQL2014MOFPath = "$ProgramFilesx86Path\Microsoft SQL Server\120\Shared\sqlmgmproviderxpsp2up.mof"
+  $SQL2014MOF = Test-Path $SQL2014MOFPath
+  IF ($SQL2014MOF)
+  {
+    Write-Host "`nSQL 2014 MOF File Found."
+    $Recompile = $true
+    Write-Host "`nStopping WMI service..."
+    Stop-Service winmgmt -force
+    Write-Host "`nAttempting MOF Recompile using mofcomp..."
+    $momapi.LogScriptEvent($ScriptName,$EventID,0,"`nSQL MOF file found at ($SQL2014MOFPath). `nMofcomp will execute to repair WMI namespace.")
+    mofcomp $SQL2014MOFPath
+  }
+
+  #Test for SQL 2016
+  $SQL2016MOFPath = "$ProgramFilesx86Path\Microsoft SQL Server\130\Shared\sqlmgmproviderxpsp2up.mof"
+  $SQL2016MOF = Test-Path $SQL2016MOFPath
+  IF ($SQL2016MOF)
+  {
+    Write-Host "`nSQL 2016 MOF File Found."
+    $Recompile = $true
+    Write-Host "`nStopping WMI service..."
+    Stop-Service winmgmt -force
+    Write-Host "`nAttempting MOF Recompile using mofcomp..."
+    $momapi.LogScriptEvent($ScriptName,$EventID,0,"`nSQL MOF file found at ($SQL2016MOFPath). `nMofcomp will execute to repair WMI namespace.")
+    mofcomp $SQL2016MOFPath
+  }
+
+  #Test for SQL 2017
+  $SQL2017MOFPath = "$ProgramFilesx86Path\Microsoft SQL Server\140\Shared\sqlmgmproviderxpsp2up.mof"
+  $SQL2017MOF = Test-Path $SQL2017MOFPath
+  IF ($SQL2017MOF)
+  {
+    Write-Host "`nSQL 2017 MOF File Found."
+    $Recompile = $true
+    Write-Host "`nStopping WMI service..."
+    Stop-Service winmgmt -force
+    Write-Host "`nAttempting MOF Recompile using mofcomp..."
+    $momapi.LogScriptEvent($ScriptName,$EventID,0,"`nSQL MOF file found at ($SQL2017MOFPath). `nMofcomp will execute to repair WMI namespace.")
+    mofcomp $SQL2017MOFPath
+  }
+
+  #Test for SQL 2019
+  $SQL2019MOFPath = "$ProgramFilesx86Path\Microsoft SQL Server\150\Shared\sqlmgmproviderxpsp2up.mof"
+  $SQL2019MOF = Test-Path $SQL2019MOFPath
+  IF ($SQL2019MOF)
+  {
+    Write-Host "`nSQL 2019 MOF File Found."
+    $Recompile = $true
+    Write-Host "`nStopping WMI service..."
+    Stop-Service winmgmt -force
+    Write-Host "`nAttempting MOF Recompile using mofcomp..."
+    $momapi.LogScriptEvent($ScriptName,$EventID,0,"`nSQL MOF file found at ($SQL2019MOFPath). `nMofcomp will execute to repair WMI namespace.")
+    mofcomp $SQL2019MOFPath
+  }
+}
+ELSE
+{
+  #Throw error and quit because we could not find Program Files x86 path
+  $Message = "FATAL ERROR:  Cannot access ProgramFiles(x86) envrionment variable path.  TERMINATING."
+  Write-Host $Message
+  $momapi.LogScriptEvent($ScriptName,$EventID,1,$Message)
+  EXIT
+}
+
+IF ($Recompile)
+{
+  Write-Host "`nStarting WMI service..."
+  Start-Service winmgmt
+}
+ELSE
+{
+  #No MOF files found
+  Write-Host "`nNo SQL MOF files were found.  No action can be taken."
+}
+#=================================================================================
+# End MAIN script section
+
+
+# End of script section
+#=================================================================================
+#Log an event for script ending and total execution time.
+$EndTime = Get-Date
+$ScriptTime = ($EndTime - $StartTime).TotalSeconds
+$momapi.LogScriptEvent($ScriptName,$EventID,0,"`nScript Completed. `nRuntime: ($ScriptTime) seconds.")
+#=================================================================================
+# End of script	
+                </ScriptBody>
                 <TimeoutSeconds>120</TimeoutSeconds>
               </WriteAction>
             </MemberModules>
@@ -529,7 +705,7 @@ $momapi.LogScriptEvent($ScriptName,$EventID,0,"`n Script Completed. `n Script Ru
           <MonitorTypeState ID="RegistryValueMissing" NoDetection="false" />
         </MonitorTypeStates>
         <Configuration>
-          <xsd:element minOccurs="1" name="IntervalSeconds" type="xsd:integer" />
+          <xsd:element minOccurs="1" name="IntervalSeconds" type="xsd:integer" xmlns:xsd="http://www.w3.org/2001/XMLSchema" />
         </Configuration>
         <MonitorImplementation>
           <MemberModules>
@@ -598,19 +774,27 @@ $momapi.LogScriptEvent($ScriptName,$EventID,0,"`n Script Completed. `n Script Ru
         <Category>Maintenance</Category>
         <WriteAction ID="HealthServiceAsSA.Task.WA" TypeID="Microsoft.SQLServer.Windows.RunAs.Addendum.HealthServiceAsSA.WA">
           <SQLServer>$Target/Property[Type="MSCL!Microsoft.SQLServer.Core.DBEngine"]/ConnectionString$</SQLServer>
-		  <TcpPorts>$Target/Property[Type="MSWD!Microsoft.SQLServer.Windows.DBEngine"]/TcpPorts$</TcpPorts>
+          <TcpPorts>$Target/Property[Type="MSWD!Microsoft.SQLServer.Windows.DBEngine"]/TcpPorts$</TcpPorts>
         </WriteAction>
       </Task>
       <Task ID="Microsoft.SQLServer.Windows.RunAs.Addendum.HealthServiceLowPriv.Task" Accessibility="Internal" Enabled="true" Target="MSWD!Microsoft.SQLServer.Windows.DBEngine" Timeout="300" Remotable="true">
         <Category>Maintenance</Category>
         <WriteAction ID="HealthServiceLowPriv.Task.WA" TypeID="Microsoft.SQLServer.Windows.RunAs.Addendum.HealthServiceLowPriv.WA">
           <SQLServer>$Target/Property[Type="MSCL!Microsoft.SQLServer.Core.DBEngine"]/ConnectionString$</SQLServer>
-		  <TcpPorts>$Target/Property[Type="MSWD!Microsoft.SQLServer.Windows.DBEngine"]/TcpPorts$</TcpPorts>
+          <TcpPorts>$Target/Property[Type="MSWD!Microsoft.SQLServer.Windows.DBEngine"]/TcpPorts$</TcpPorts>
         </WriteAction>
       </Task>
       <Task ID="Microsoft.SQLServer.Windows.RunAs.Addendum.HealthServiceSidTypeAndRestart.Task" Accessibility="Internal" Enabled="true" Target="MSWD!Microsoft.SQLServer.Windows.LocalDiscoverySeed" Timeout="300" Remotable="true">
         <Category>Maintenance</Category>
         <WriteAction ID="HealthServiceSidTypeAndRestart.Task.WA" TypeID="Microsoft.SQLServer.Windows.RunAs.Addendum.SetHSServiceSidStateandRestart.WA" />
+      </Task>
+      <Task ID="Microsoft.SQLServer.Windows.RunAs.Addendum.RepairSQLWMIMofcomp.Seed.Task" Accessibility="Internal" Enabled="true" Target="MSWD!Microsoft.SQLServer.Windows.LocalDiscoverySeed" Timeout="300" Remotable="true">
+        <Category>Maintenance</Category>
+        <WriteAction ID="RepairSQLWMIMofcomp.Task.WA" TypeID="Microsoft.SQLServer.Windows.RunAs.Addendum.RepairSQLWMIMofcomp.WA" />
+      </Task>
+      <Task ID="Microsoft.SQLServer.Windows.RunAs.Addendum.RepairSQLWMIMofcomp.Alert.Task" Accessibility="Internal" Enabled="true" Target="MSWD!Microsoft.SQLServer.Windows.MonitoringPoolAlertCollection" Timeout="300" Remotable="true">
+        <Category>Maintenance</Category>
+        <WriteAction ID="RepairSQLWMIMofcomp.Task.WA" TypeID="Microsoft.SQLServer.Windows.RunAs.Addendum.RepairSQLWMIMofcomp.WA" />
       </Task>
     </Tasks>
     <Monitors>
@@ -664,6 +848,17 @@ $momapi.LogScriptEvent($ScriptName,$EventID,0,"`n Script Completed. `n Script Ru
         <Presentation />
         <Target />
       </View>
+      <View ID="Microsoft.SQLServer.Windows.RunAs.Addendum.DiscoveryMonitoringErrors.Alert.View" Accessibility="Public" Enabled="true" Target="MSWD!Microsoft.SQLServer.Windows.MonitoringPoolAlertCollection" TypeID="SC!Microsoft.SystemCenter.AlertViewType" Visible="true">
+        <Category>Operations</Category>
+        <Criteria>
+          <ResolutionState>
+            <StateRange Operator="NotEquals">255</StateRange>
+          </ResolutionState>
+        </Criteria>
+        <Presentation>
+        </Presentation>
+        <Target />
+      </View>
     </Views>
     <Folders>
       <Folder ID="Microsoft.SQLServer.Windows.RunAs.Addendum.Root.Folder" Accessibility="Public" ParentFolder="SC!Microsoft.SystemCenter.Monitoring.ViewFolder.Root" />
@@ -671,6 +866,7 @@ $momapi.LogScriptEvent($ScriptName,$EventID,0,"`n Script Completed. `n Script Ru
     <FolderItems>
       <FolderItem ElementID="Microsoft.SQLServer.Windows.RunAs.Addendum.Seed.State.View" ID="Microsoft.SQLServer.Windows.RunAs.Addendum.Seed.State.View" Folder="Microsoft.SQLServer.Windows.RunAs.Addendum.Root.Folder" />
       <FolderItem ElementID="Microsoft.SQLServer.Windows.RunAs.Addendum.Engine.State.View" ID="Microsoft.SQLServer.Windows.RunAs.Addendum.Engine.State.View" Folder="Microsoft.SQLServer.Windows.RunAs.Addendum.Root.Folder" />
+      <FolderItem ElementID="Microsoft.SQLServer.Windows.RunAs.Addendum.DiscoveryMonitoringErrors.Alert.View" ID="Microsoft.SQLServer.Windows.RunAs.Addendum.DiscoveryMonitoringErrors.Alert.View.FolderItem" Folder="Microsoft.SQLServer.Windows.RunAs.Addendum.Root.Folder" />
     </FolderItems>
     <StringResources>
       <StringResource ID="Microsoft.SQLServer.Windows.RunAs.Addendum.MissingSidTypeRegistry.Monitor.AlertMessage" />
@@ -694,6 +890,12 @@ $momapi.LogScriptEvent($ScriptName,$EventID,0,"`n Script Completed. `n Script Ru
         </DisplayString>
         <DisplayString ElementID="Microsoft.SQLServer.Windows.RunAs.Addendum.HealthServiceLowPriv.Task">
           <Name>Create HealthService Login as Low Priv Task</Name>
+        </DisplayString>
+        <DisplayString ElementID="Microsoft.SQLServer.Windows.RunAs.Addendum.RepairSQLWMIMofcomp.Seed.Task">
+          <Name>Repair SQL WMI Mofcomp</Name>
+        </DisplayString>
+        <DisplayString ElementID="Microsoft.SQLServer.Windows.RunAs.Addendum.RepairSQLWMIMofcomp.Alert.Task">
+          <Name>Repair SQL WMI Mofcomp</Name>
         </DisplayString>
         <DisplayString ElementID="Microsoft.SQLServer.Windows.RunAs.Addendum.MissingSidTypeRegistry.Monitor">
           <Name>HealthService SID is Enabled Monitor</Name>
@@ -724,6 +926,9 @@ For more details, see:  https://kevinholman.com/2016/08/25/sql-mp-run-as-account
         <DisplayString ElementID="Microsoft.SQLServer.Windows.RunAs.Addendum.MissingSidTypeRegistry.Monitor.OverrideForContextMicrosoftSQLServerWindowsLocalDiscoverySeed">
           <Name>NotUsed</Name>
           <Description>Disabling alerting by default.  Customers may delete this override if they wish to see alerts for this monitor.  If customers seal the addendum MP, then an override in an unsealed MP will take precedence over this override.</Description>
+        </DisplayString>
+        <DisplayString ElementID="Microsoft.SQLServer.Windows.RunAs.Addendum.DiscoveryMonitoringErrors.Alert.View">
+          <Name>SQL Alerts - Discovery/Monitoring Issues</Name>
         </DisplayString>
       </DisplayStrings>
       <KnowledgeArticles>
