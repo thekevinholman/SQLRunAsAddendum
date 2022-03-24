@@ -1,4 +1,4 @@
-# SQLRunAsAddendum 7.0.32.0
+# SQLRunAsAddendum 7.0.36.0
 
 ## [Download Here][Download]
 
@@ -8,6 +8,9 @@ SQL Server RunAs Addendum Management Pack for SCOM
 
 https://kevinholman.com/2016/08/25/sql-mp-run-as-accounts-no-longer-required/
 
+* Version 7.0.36.0
+Added two tasks to be able to run a MOFCOMP repair of WMI for SQL namespace.
+Added Alert view for discovery/monitoring errors
 * Version 7.0.32.0
 Updated SQL 2012+ script to add new requirements on MSDB database for SQL Agent Job discovery required for 7.0.32.0 of the SQL MP
 Changed frequency of Healthservice SID is Enabled Monitor from 43200 seconds to 14400 seconds based on feedback
