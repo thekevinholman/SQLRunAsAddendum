@@ -2,7 +2,7 @@
   <Manifest>
     <Identity>
       <ID>Microsoft.SQLServer.Windows.RunAs.Addendum</ID>
-      <Version>7.0.36.0</Version>
+      <Version>7.0.36.1</Version>
     </Identity>
     <Name>Microsoft.SQLServer.Windows.RunAs.Addendum</Name>
     <References>
