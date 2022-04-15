@@ -2,7 +2,7 @@
   <Manifest>
     <Identity>
       <ID>Microsoft.SQLServer.Windows.RunAs.Addendum</ID>
-      <Version>7.0.36.0</Version>
+      <Version>7.0.36.1</Version>
     </Identity>
     <Name>Microsoft.SQLServer.Windows.RunAs.Addendum</Name>
     <References>
@@ -342,163 +342,171 @@ $momapi.LogScriptEvent($ScriptName,$EventID,0,"`n Script Completed. `n Script Ru
               <WriteAction ID="PSWA" TypeID="Windows!Microsoft.Windows.PowerShellWriteAction">
                 <ScriptName>Microsoft.SQLServer.Windows.RunAs.Addendum.HealthServiceLowPriv.WA.ps1</ScriptName>
                 <ScriptBody>
-#=================================================================================
-#  Script to create SQL Login for HealthService and grant Low Priv
-#
-#  Author: Kevin Holman
-#  v1.3
-#=================================================================================
-param([string]$SQLServer,[string]$TcpPorts)
+                  #=================================================================================
+                  #  Script to create SQL Login for HealthService and grant Low Priv
+                  #
+                  #  Author: Kevin Holman
+                  #  v1.3
+                  #=================================================================================
+                  param([string]$SQLServer,[string]$TcpPorts)
 
 
-# Manual Testing section - put stuff here for manually testing script - typically parameters:
-#=================================================================================
-# [string]$SQLServer = "WS2012R2\INST1"
-# [string]$TcpPorts = "49304"
-#=================================================================================
+                  # Manual Testing section - put stuff here for manually testing script - typically parameters:
+                  #=================================================================================
+                  # [string]$SQLServer = "WS2012R2\INST1"
+                  # [string]$TcpPorts = "49304"
+                  #=================================================================================
 
 
-# Constants section - modify stuff here:
-#=================================================================================
-# Assign script name variable for use in event logging.  
-$ScriptName = "Microsoft.SQLServer.Windows.RunAs.Addendum.HealthServiceLowPriv.WA.ps1"
-$EventID = "8702"
+                  # Constants section - modify stuff here:
+                  #=================================================================================
+                  # Assign script name variable for use in event logging.
+                  $ScriptName = "Microsoft.SQLServer.Windows.RunAs.Addendum.HealthServiceLowPriv.WA.ps1"
+                  $EventID = "8702"
 
-[string]$SQLQuery = "USE [master];
-SET NOCOUNT ON;
-DECLARE @accountname sysname = 'NT SERVICE\HealthService';
--- Create the server role and grant instance level permissions
-CREATE SERVER ROLE [SCOM_HealthService];
-GRANT VIEW ANY DATABASE TO [SCOM_HealthService];
---GRANT ALTER ANY DATABASE TO [SCOM_HealthService]; --Required only for SCOMDB tasks
-GRANT VIEW ANY DEFINITION TO [SCOM_HealthService];
-GRANT VIEW SERVER STATE TO [SCOM_HealthService];
-DECLARE @createLoginCommand nvarchar(200);
-SET @createLoginCommand = ' CREATE LOGIN '+ QUOTENAME(@accountname) +' FROM WINDOWS WITH DEFAULT_DATABASE=[master];'
-EXEC(@createLoginCommand);
--- Add the login to the user defined server role 
-EXEC sp_addsrvrolemember @loginame = @accountname, @rolename = 'SCOM_HealthService' 
--- Add the login and database role to each database
-DECLARE @createDatabaseUserAndRole nvarchar(max) SET @createDatabaseUserAndRole = ''; 
-SELECT @createDatabaseUserAndRole = @createDatabaseUserAndRole + ' USE ' + QUOTENAME(db.name) + '; CREATE USER ' + QUOTENAME(@accountname) + ' FOR LOGIN ' + QUOTENAME(@accountname) + '; CREATE ROLE [SCOM_HealthService]; EXEC sp_addrolemember @rolename = ''SCOM_HealthService'', @membername = '+ QUOTENAME(@accountname) + '' 
-  -- 'ALTER ROLE [SCOM_HealthService] ADD MEMBER ' + QUOTENAME(@accountname) + ';' 
-  FROM sys.databases db  
-  LEFT JOIN sys.dm_hadr_availability_replica_states hadrstate ON db.replica_id = hadrstate.replica_id  
-  WHERE db.database_id != 2 AND db.user_access = 0 AND db.state = 0 AND db.is_read_only = 0 AND (hadrstate.role = 1 or hadrstate.role IS NULL); 
-EXEC(@createDatabaseUserAndRole) 
--- Add database specific permissions to database role
-USE [master]; 
-GRANT EXECUTE ON sys.xp_readerrorlog TO [SCOM_HealthService]
-GRANT SELECT ON sys.database_mirroring_witnesses TO [SCOM_HealthService];
-USE [msdb]; 
-GRANT SELECT ON [dbo].[sysjobschedules] TO [SCOM_HealthService]; 
-GRANT SELECT ON [dbo].[sysschedules] TO [SCOM_HealthService]; 
-GRANT SELECT ON [dbo].[sysjobs_view] TO [SCOM_HealthService]; 
-GRANT SELECT ON [dbo].[syscategories] TO [SCOM_HealthService];
-GRANT SELECT ON [dbo].[log_shipping_primary_databases] TO [SCOM_HealthService]; 
-GRANT SELECT ON [dbo].[log_shipping_secondary_databases] TO [SCOM_HealthService]; 
-GRANT SELECT ON [dbo].[log_shipping_monitor_history_detail] TO [SCOM_HealthService]; 
-GRANT SELECT ON [dbo].[log_shipping_monitor_secondary] TO [SCOM_HealthService]; 
-GRANT SELECT ON [dbo].[log_shipping_monitor_primary] TO [SCOM_HealthService]; 
-GRANT EXECUTE ON [dbo].[sp_help_job] TO [SCOM_HealthService]; 
-GRANT EXECUTE ON [dbo].[sp_help_jobactivity] TO [SCOM_HealthService]; 
-GRANT EXECUTE ON [dbo].[SQLAGENT_SUSER_SNAME] TO [SCOM_HealthService];
-EXEC sp_addrolemember @rolename='SQLAgentReaderRole', @membername='SCOM_HealthService';
-EXEC sp_addrolemember @rolename='PolicyAdministratorRole', @membername='SCOM_HealthService';"
-#=================================================================================
-
-
-# Starting Script section - All scripts get this
-#=================================================================================
-# Gather the start time of the script
-$StartTime = Get-Date
-#Set variable to be used in logging events
-$whoami = whoami
-# Load MOMScript API
-$momapi = New-Object -comObject MOM.ScriptAPI
-#Log script event that we are starting task
-$momapi.LogScriptEvent($ScriptName,$EventID,0,"`n Script is starting. `n Running as ($whoami).")
-#=================================================================================
+                  [string]$SQLQuery = "USE [master];
+                  SET NOCOUNT ON;
+                  DECLARE @accountname sysname = 'NT SERVICE\HealthService';
+                  -- In some cases, admins change the sa account default name
+                  -- This will retrieve the name of the account associated to princicpal_id = 1
+                  DECLARE @sa_name sysname = 'sa';
+                  SELECT @sa_name = [Name] FROM sys.server_principals WHERE principal_id = 1
+                  -- Create the server role and grant instance level permissions
+                  -- Modified to create the server role with authorization to the account associated to principal id = 1
+                  -- Also, modified to create the role only if it does not already exist
+                  DECLARE @createSrvRoleCommand nvarchar(200);
+                  SET @createSrvRoleCommand = 'IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE [Name] = ''SCOM_HealthService'') BEGIN CREATE SERVER ROLE [SCOM_HealthService] AUTHORIZATION [' + @sa_name + ']; END'
+                  EXEC(@createSrvRoleCommand);
+                  GRANT VIEW ANY DATABASE TO [SCOM_HealthService];
+                  --GRANT ALTER ANY DATABASE TO [SCOM_HealthService]; --Required only for SCOMDB tasks
+                  GRANT VIEW ANY DEFINITION TO [SCOM_HealthService];
+                  GRANT VIEW SERVER STATE TO [SCOM_HealthService];
+                  DECLARE @createLoginCommand nvarchar(200);
+                  SET @createLoginCommand = 'IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE [Name] = '''+ @accountname +''') BEGIN CREATE LOGIN '+ QUOTENAME(@accountname) +' FROM WINDOWS WITH DEFAULT_DATABASE=[master]; END'
+                  EXEC(@createLoginCommand);
+                  -- Add the login to the user defined server role
+                  EXEC sp_addsrvrolemember @loginame = @accountname, @rolename = 'SCOM_HealthService'
+                  -- Add the login and database role to each database
+                  DECLARE @createDatabaseUserAndRole nvarchar(max) SET @createDatabaseUserAndRole = '';
+                  SELECT @createDatabaseUserAndRole = @createDatabaseUserAndRole + ' USE ' + QUOTENAME(db.name) + '; IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE [Name] = '''+ @accountname +''') BEGIN CREATE USER ' + QUOTENAME(@accountname) + ' FOR LOGIN ' + QUOTENAME(@accountname) + '; END; IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE [Name] = ''SCOM_HealthService'') BEGIN CREATE ROLE [SCOM_HealthService] AUTHORIZATION [dbo]; END; EXEC sp_addrolemember @rolename = ''SCOM_HealthService'', @membername = '+ QUOTENAME(@accountname) + ''
+                  -- 'ALTER ROLE [SCOM_HealthService] ADD MEMBER ' + QUOTENAME(@accountname) + ';'
+                  FROM sys.databases db
+                  LEFT JOIN sys.dm_hadr_availability_replica_states hadrstate ON db.replica_id = hadrstate.replica_id
+                  WHERE db.database_id != 2 AND db.user_access = 0 AND db.state = 0 AND db.is_read_only = 0 AND (hadrstate.role = 1 or hadrstate.role IS NULL);
+                  EXEC(@createDatabaseUserAndRole)
+                  -- Add database specific permissions to database role
+                  USE [master];
+                  GRANT EXECUTE ON sys.xp_readerrorlog TO [SCOM_HealthService]
+                  GRANT SELECT ON sys.database_mirroring_witnesses TO [SCOM_HealthService];
+                  USE [msdb];
+                  GRANT SELECT ON [dbo].[sysjobschedules] TO [SCOM_HealthService];
+                  GRANT SELECT ON [dbo].[sysschedules] TO [SCOM_HealthService];
+                  GRANT SELECT ON [dbo].[sysjobs_view] TO [SCOM_HealthService];
+                  GRANT SELECT ON [dbo].[syscategories] TO [SCOM_HealthService];
+                  GRANT SELECT ON [dbo].[log_shipping_primary_databases] TO [SCOM_HealthService];
+                  GRANT SELECT ON [dbo].[log_shipping_secondary_databases] TO [SCOM_HealthService];
+                  GRANT SELECT ON [dbo].[log_shipping_monitor_history_detail] TO [SCOM_HealthService];
+                  GRANT SELECT ON [dbo].[log_shipping_monitor_secondary] TO [SCOM_HealthService];
+                  GRANT SELECT ON [dbo].[log_shipping_monitor_primary] TO [SCOM_HealthService];
+                  GRANT EXECUTE ON [dbo].[sp_help_job] TO [SCOM_HealthService];
+                  GRANT EXECUTE ON [dbo].[sp_help_jobactivity] TO [SCOM_HealthService];
+                  GRANT EXECUTE ON [dbo].[SQLAGENT_SUSER_SNAME] TO [SCOM_HealthService];
+                  EXEC sp_addrolemember @rolename='SQLAgentReaderRole', @membername='SCOM_HealthService';
+                  EXEC sp_addrolemember @rolename='PolicyAdministratorRole', @membername='SCOM_HealthService';"
+                  #=================================================================================
 
 
-# Begin MAIN script section
-#=================================================================================
-Write-Host "Script is starting. `nRunning as ($whoami). `nSQLServer: ($SQLServer)."
-
-#Clear any previous errors
-IF($Error){$Error.Clear()}
-
-##### Begin Source SQL Query Section
-# Connect to SQL and then Query the database
-$SQLConnection = New-Object System.Data.SqlClient.SqlConnection
-$SQLConnection.ConnectionString = "Server=$SQLServer;Integrated Security=True"
-TRY
-{
-  Write-Host "Opening Connection using connect string: ($SQLServer)."
-  $SQLConnection.Open()
-}
-CATCH
-{
-  Write-Host "ERROR opening connection to: ($SQLServer).  Will Attempt using Name,Port"
-  IF ($SQLServer -match "\\")
-  {
-    #Drop the backslash and named instance
-    $SQLServer = ($SQLServer.Split("\"))[0]
-  }
-  #Use only the first port if passed a comma seperated list
-  IF ($TcpPorts -match ",")
-  {
-    $TcpPorts = ($TcpPorts.Split(","))[0]
-  }
-  #Make a new connect string with the port  
-  $SQLServer = $SQLServer + "," + $TcpPorts
-  #Connect attempt
-  TRY
-  {
-    Write-Host "Opening Connection using connect string: ($SQLServer)."
-    $SQLConnection.ConnectionString = "Server=$SQLServer;Integrated Security=True"
-    $SQLConnection.Open()
-  }
-  CATCH
-  {
-    Write-Host "ERROR opening connection to: ($SQLServer). `nTERMINATING. `nError is: ($Error)."
-    EXIT
-  }
-}
-
-#Clear any previous errors
-IF($Error){$Error.Clear()}   
-
-Write-Host "Connected to SQL Server: ($SQLServer). `nRunning SQL command to Create SQL Login and assign permissions for Healthservice."
-
-$SQLCmd = New-Object System.Data.SqlClient.SqlCommand
-$SQLCmd.CommandText = $SQLQuery
-$SQLCmd.Connection = $SQLConnection
-$SQLCmd.ExecuteNonQuery() | Out-Null
-$SQLConnection.Close()
-
-# Check for errors connecting to SQL
-IF ($Error)
-{
-  Write-Host "ERROR executing query on: ($SQLServer). `nTERMINATING. `nError is: ($Error)."
-  EXIT  
-}
-ELSE
-{
-  Write-Host "SUCCESS executing SQL command"
-}
-#=================================================================================
-# End MAIN script section
+                  # Starting Script section - All scripts get this
+                  #=================================================================================
+                  # Gather the start time of the script
+                  $StartTime = Get-Date
+                  #Set variable to be used in logging events
+                  $whoami = whoami
+                  # Load MOMScript API
+                  $momapi = New-Object -comObject MOM.ScriptAPI
+                  #Log script event that we are starting task
+                  $momapi.LogScriptEvent($ScriptName,$EventID,0,"`n Script is starting. `n Running as ($whoami).")
+                  #=================================================================================
 
 
-# End of script section
-#=================================================================================
-#Log an event for script ending and total execution time.
-$EndTime = Get-Date
-$ScriptTime = ($EndTime - $StartTime).TotalSeconds
-$momapi.LogScriptEvent($ScriptName,$EventID,0,"`n Script Completed. `n Script Runtime: ($ScriptTime) seconds.")
-#=================================================================================
-# End of script															
+                  # Begin MAIN script section
+                  #=================================================================================
+                  Write-Host "Script is starting. `nRunning as ($whoami). `nSQLServer: ($SQLServer)."
+
+                  #Clear any previous errors
+                  IF($Error){$Error.Clear()}
+
+                  ##### Begin Source SQL Query Section
+                  # Connect to SQL and then Query the database
+                  $SQLConnection = New-Object System.Data.SqlClient.SqlConnection
+                  $SQLConnection.ConnectionString = "Server=$SQLServer;Integrated Security=True"
+                  TRY
+                  {
+                  Write-Host "Opening Connection using connect string: ($SQLServer)."
+                  $SQLConnection.Open()
+                  }
+                  CATCH
+                  {
+                  Write-Host "ERROR opening connection to: ($SQLServer).  Will Attempt using Name,Port"
+                  IF ($SQLServer -match "\\")
+                  {
+                  #Drop the backslash and named instance
+                  $SQLServer = ($SQLServer.Split("\"))[0]
+                  }
+                  #Use only the first port if passed a comma seperated list
+                  IF ($TcpPorts -match ",")
+                  {
+                  $TcpPorts = ($TcpPorts.Split(","))[0]
+                  }
+                  #Make a new connect string with the port
+                  $SQLServer = $SQLServer + "," + $TcpPorts
+                  #Connect attempt
+                  TRY
+                  {
+                  Write-Host "Opening Connection using connect string: ($SQLServer)."
+                  $SQLConnection.ConnectionString = "Server=$SQLServer;Integrated Security=True"
+                  $SQLConnection.Open()
+                  }
+                  CATCH
+                  {
+                  Write-Host "ERROR opening connection to: ($SQLServer). `nTERMINATING. `nError is: ($Error)."
+                  EXIT
+                  }
+                  }
+
+                  #Clear any previous errors
+                  IF($Error){$Error.Clear()}
+
+                  Write-Host "Connected to SQL Server: ($SQLServer). `nRunning SQL command to Create SQL Login and assign permissions for Healthservice."
+
+                  $SQLCmd = New-Object System.Data.SqlClient.SqlCommand
+                  $SQLCmd.CommandText = $SQLQuery
+                  $SQLCmd.Connection = $SQLConnection
+                  $SQLCmd.ExecuteNonQuery() | Out-Null
+                  $SQLConnection.Close()
+
+                  # Check for errors connecting to SQL
+                  IF ($Error)
+                  {
+                  Write-Host "ERROR executing query on: ($SQLServer). `nTERMINATING. `nError is: ($Error)."
+                  EXIT
+                  }
+                  ELSE
+                  {
+                  Write-Host "SUCCESS executing SQL command"
+                  }
+                  #=================================================================================
+                  # End MAIN script section
+
+
+                  # End of script section
+                  #=================================================================================
+                  #Log an event for script ending and total execution time.
+                  $EndTime = Get-Date
+                  $ScriptTime = ($EndTime - $StartTime).TotalSeconds
+                  $momapi.LogScriptEvent($ScriptName,$EventID,0,"`n Script Completed. `n Script Runtime: ($ScriptTime) seconds.")
+                  #=================================================================================
+                  # End of script
                 </ScriptBody>
                 <Parameters>
                   <Parameter>
