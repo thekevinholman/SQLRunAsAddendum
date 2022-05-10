@@ -2,7 +2,7 @@
   <Manifest>
     <Identity>
       <ID>Microsoft.SQLServer.Windows.RunAs.Addendum</ID>
-      <Version>7.0.36.0</Version>
+      <Version>7.0.36.1</Version>
     </Identity>
     <Name>Microsoft.SQLServer.Windows.RunAs.Addendum</Name>
     <References>
@@ -346,7 +346,7 @@ $momapi.LogScriptEvent($ScriptName,$EventID,0,"`n Script Completed. `n Script Ru
 #  Script to create SQL Login for HealthService and grant Low Priv
 #
 #  Author: Kevin Holman
-#  v1.3
+#  v1.4
 #=================================================================================
 param([string]$SQLServer,[string]$TcpPorts)
 
@@ -367,44 +367,52 @@ $EventID = "8702"
 [string]$SQLQuery = "USE [master];
 SET NOCOUNT ON;
 DECLARE @accountname sysname = 'NT SERVICE\HealthService';
+-- In some cases, admins change the sa account default name
+-- This will retrieve the name of the account associated to princicpal_id = 1
+DECLARE @sa_name sysname = 'sa';
+SELECT @sa_name = [Name] FROM sys.server_principals WHERE principal_id = 1
 -- Create the server role and grant instance level permissions
-CREATE SERVER ROLE [SCOM_HealthService];
+-- Create the server role with authorization to the account associated to principal id = 1
+-- Create the role only if it does not already exist
+DECLARE @createSrvRoleCommand nvarchar(200);
+SET @createSrvRoleCommand = 'IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE [Name] = ''SCOM_HealthService'') BEGIN CREATE SERVER ROLE [SCOM_HealthService] AUTHORIZATION [' + @sa_name + ']; END'
+EXEC(@createSrvRoleCommand);
 GRANT VIEW ANY DATABASE TO [SCOM_HealthService];
 --GRANT ALTER ANY DATABASE TO [SCOM_HealthService]; --Required only for SCOMDB tasks
 GRANT VIEW ANY DEFINITION TO [SCOM_HealthService];
 GRANT VIEW SERVER STATE TO [SCOM_HealthService];
 DECLARE @createLoginCommand nvarchar(200);
-SET @createLoginCommand = ' CREATE LOGIN '+ QUOTENAME(@accountname) +' FROM WINDOWS WITH DEFAULT_DATABASE=[master];'
+SET @createLoginCommand = 'IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE [Name] = '''+ @accountname +''') BEGIN CREATE LOGIN '+ QUOTENAME(@accountname) +' FROM WINDOWS WITH DEFAULT_DATABASE=[master]; END'
 EXEC(@createLoginCommand);
--- Add the login to the user defined server role 
-EXEC sp_addsrvrolemember @loginame = @accountname, @rolename = 'SCOM_HealthService' 
+-- Add the login to the user defined server role
+EXEC sp_addsrvrolemember @loginame = @accountname, @rolename = 'SCOM_HealthService'
 -- Add the login and database role to each database
-DECLARE @createDatabaseUserAndRole nvarchar(max) SET @createDatabaseUserAndRole = ''; 
-SELECT @createDatabaseUserAndRole = @createDatabaseUserAndRole + ' USE ' + QUOTENAME(db.name) + '; CREATE USER ' + QUOTENAME(@accountname) + ' FOR LOGIN ' + QUOTENAME(@accountname) + '; CREATE ROLE [SCOM_HealthService]; EXEC sp_addrolemember @rolename = ''SCOM_HealthService'', @membername = '+ QUOTENAME(@accountname) + '' 
-  -- 'ALTER ROLE [SCOM_HealthService] ADD MEMBER ' + QUOTENAME(@accountname) + ';' 
-  FROM sys.databases db  
-  LEFT JOIN sys.dm_hadr_availability_replica_states hadrstate ON db.replica_id = hadrstate.replica_id  
-  WHERE db.database_id != 2 AND db.user_access = 0 AND db.state = 0 AND db.is_read_only = 0 AND (hadrstate.role = 1 or hadrstate.role IS NULL); 
-EXEC(@createDatabaseUserAndRole) 
+DECLARE @createDatabaseUserAndRole nvarchar(max) SET @createDatabaseUserAndRole = '';
+SELECT @createDatabaseUserAndRole = @createDatabaseUserAndRole + ' USE ' + QUOTENAME(db.name) + '; IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE [Name] = '''+ @accountname +''') BEGIN CREATE USER ' + QUOTENAME(@accountname) + ' FOR LOGIN ' + QUOTENAME(@accountname) + '; END; IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE [Name] = ''SCOM_HealthService'') BEGIN CREATE ROLE [SCOM_HealthService] AUTHORIZATION [dbo]; END; EXEC sp_addrolemember @rolename = ''SCOM_HealthService'', @membername = '+ QUOTENAME(@accountname) + ''
+-- 'ALTER ROLE [SCOM_HealthService] ADD MEMBER ' + QUOTENAME(@accountname) + ';'
+FROM sys.databases db
+LEFT JOIN sys.dm_hadr_availability_replica_states hadrstate ON db.replica_id = hadrstate.replica_id
+WHERE db.database_id != 2 AND db.user_access = 0 AND db.state = 0 AND db.is_read_only = 0 AND (hadrstate.role = 1 or hadrstate.role IS NULL);
+EXEC(@createDatabaseUserAndRole)
 -- Add database specific permissions to database role
-USE [master]; 
+USE [master];
 GRANT EXECUTE ON sys.xp_readerrorlog TO [SCOM_HealthService]
+GRANT EXECUTE ON sys.xp_instance_regread TO [SCOM_HealthService];
 GRANT SELECT ON sys.database_mirroring_witnesses TO [SCOM_HealthService];
-USE [msdb]; 
-GRANT SELECT ON [dbo].[sysjobschedules] TO [SCOM_HealthService]; 
-GRANT SELECT ON [dbo].[sysschedules] TO [SCOM_HealthService]; 
-GRANT SELECT ON [dbo].[sysjobs_view] TO [SCOM_HealthService]; 
+USE [msdb];
+GRANT SELECT ON [dbo].[sysjobschedules] TO [SCOM_HealthService];
+GRANT SELECT ON [dbo].[sysschedules] TO [SCOM_HealthService];
+GRANT SELECT ON [dbo].[sysjobs_view] TO [SCOM_HealthService];
 GRANT SELECT ON [dbo].[syscategories] TO [SCOM_HealthService];
-GRANT SELECT ON [dbo].[log_shipping_primary_databases] TO [SCOM_HealthService]; 
-GRANT SELECT ON [dbo].[log_shipping_secondary_databases] TO [SCOM_HealthService]; 
-GRANT SELECT ON [dbo].[log_shipping_monitor_history_detail] TO [SCOM_HealthService]; 
-GRANT SELECT ON [dbo].[log_shipping_monitor_secondary] TO [SCOM_HealthService]; 
-GRANT SELECT ON [dbo].[log_shipping_monitor_primary] TO [SCOM_HealthService]; 
-GRANT EXECUTE ON [dbo].[sp_help_job] TO [SCOM_HealthService]; 
-GRANT EXECUTE ON [dbo].[sp_help_jobactivity] TO [SCOM_HealthService]; 
+GRANT SELECT ON [dbo].[log_shipping_primary_databases] TO [SCOM_HealthService];
+GRANT SELECT ON [dbo].[log_shipping_secondary_databases] TO [SCOM_HealthService];
+GRANT SELECT ON [dbo].[log_shipping_monitor_history_detail] TO [SCOM_HealthService];
+GRANT SELECT ON [dbo].[log_shipping_monitor_secondary] TO [SCOM_HealthService];
+GRANT SELECT ON [dbo].[log_shipping_monitor_primary] TO [SCOM_HealthService];
+GRANT EXECUTE ON [dbo].[sp_help_job] TO [SCOM_HealthService];
+GRANT EXECUTE ON [dbo].[sp_help_jobactivity] TO [SCOM_HealthService];
 GRANT EXECUTE ON [dbo].[SQLAGENT_SUSER_SNAME] TO [SCOM_HealthService];
-EXEC sp_addrolemember @rolename='SQLAgentReaderRole', @membername='SCOM_HealthService';
-EXEC sp_addrolemember @rolename='PolicyAdministratorRole', @membername='SCOM_HealthService';"
+EXEC sp_addrolemember @rolename='SQLAgentReaderRole', @membername='SCOM_HealthService';"
 #=================================================================================
 
 
@@ -417,7 +425,7 @@ $whoami = whoami
 # Load MOMScript API
 $momapi = New-Object -comObject MOM.ScriptAPI
 #Log script event that we are starting task
-$momapi.LogScriptEvent($ScriptName,$EventID,0,"`n Script is starting. `n Running as ($whoami).")
+$momapi.LogScriptEvent($ScriptName,$EventID,0,"`nScript is starting. `nRunning as ($whoami).")
 #=================================================================================
 
 
