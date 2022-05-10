@@ -9,10 +9,10 @@ SQL Server RunAs Addendum Management Pack for SCOM
 https://kevinholman.com/2016/08/25/sql-mp-run-as-accounts-no-longer-required/
 
 * Version 7.0.36.1
-Changed the server role to be added with AUTHORIZATION to support customers who rename SA account.
-Changed to only add server role or DB role if they do not already exist to reduce errors displayed when re-running.
-Added GRANT EXECUTE ON sys.xp_instance_regread TO [SCOM_HealthService];
-Removed EXEC sp_addrolemember @rolename='PolicyAdministratorRole', @membername='SCOM_HealthService';
+**Changed the server role to be added with AUTHORIZATION to support customers who rename SA account.
+**Changed to only add server role or DB role if they do not already exist to reduce errors displayed when re-running.
+**Added GRANT EXECUTE ON sys.xp_instance_regread TO [SCOM_HealthService];
+**Removed EXEC sp_addrolemember @rolename='PolicyAdministratorRole', @membername='SCOM_HealthService';
 * Version 7.0.36.0
 Added two tasks to be able to run a MOFCOMP repair of WMI for SQL namespace.
 Added Alert view for discovery/monitoring errors
