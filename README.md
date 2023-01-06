@@ -1,4 +1,4 @@
-# SQLRunAsAddendum 7.0.36.1
+# SQLRunAsAddendum 7.0.42.0
 
 ## [Download Here][Download]
 
@@ -8,6 +8,9 @@ SQL Server RunAs Addendum Management Pack for SCOM
 
 https://kevinholman.com/2016/08/25/sql-mp-run-as-accounts-no-longer-required/
 
+* Version 7.0.42.0
+  * Updated permissions for low-privileged service account to comply with new MP features
+  * Added GRANT VIEW ANY DATABASE
 * Version 7.0.36.1
   * Changed the server role to be added with AUTHORIZATION to support customers who rename SA account.
   * Changed to only add server role or DB role if they do not already exist to reduce errors displayed when re-running.
