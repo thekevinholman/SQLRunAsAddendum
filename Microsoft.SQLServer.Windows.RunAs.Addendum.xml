@@ -416,6 +416,7 @@ EXEC(@createDatabaseUserAndRole);
 /* master database permissions */
 GRANT EXECUTE ON sys.xp_readerrorlog TO [SCOM_HealthService];
 GRANT EXECUTE ON sys.xp_instance_regread TO [SCOM_HealthService];
+GRANT SELECT ON sys.database_mirroring_witnesses TO [SCOM_HealthService];
 
 /* msdb database user, role, and role membership */
 USE [msdb];
