@@ -386,9 +386,6 @@ SET @createSrvRoleCommand = 'IF NOT EXISTS (SELECT 1 FROM sys.server_principals
 WHERE [Name] = ''SCOM_HealthService'') BEGIN
 CREATE SERVER ROLE [SCOM_HealthService] AUTHORIZATION [' + @sa_name + ']; END'
 EXEC(@createSrvRoleCommand);
-GRANT VIEW ANY DATABASE TO [SCOM_HealthService];
-GRANT VIEW ANY DEFINITION TO [SCOM_HealthService];
-GRANT VIEW SERVER STATE TO [SCOM_HealthService];
 DECLARE @createLoginCommand nvarchar(200);
 SET @createLoginCommand = 'IF NOT EXISTS (SELECT 1 FROM sys.server_principals
 WHERE [Name] = '''+ @accountname +''') BEGIN
@@ -400,8 +397,7 @@ SET @addServerMemberCommand = 'ALTER SERVER ROLE [SCOM_HealthService] ADD MEMBER
 + QUOTENAME(@accountname) + ';'
 EXEC(@addServerMemberCommand);
 
-
-/* Master database user, role and role membership */
+/* Master database user, role, role membership and permissions */
 USE [master];
 DECLARE @createDatabaseUserAndRole nvarchar(max);
 SET @createDatabaseUserAndRole = '';
@@ -414,11 +410,15 @@ ALTER ROLE [SCOM_HealthService] ADD MEMBER ' + QUOTENAME(@accountname) + ';'
 EXEC(@createDatabaseUserAndRole);
 
 /* master database permissions */
+GRANT VIEW ANY DATABASE TO [SCOM_HealthService];
+GRANT VIEW ANY DEFINITION TO [SCOM_HealthService];
+GRANT VIEW SERVER STATE TO [SCOM_HealthService];
+GRANT CONNECT ANY DATABASE TO [NT SERVICE\HealthService];
 GRANT EXECUTE ON sys.xp_readerrorlog TO [SCOM_HealthService];
 GRANT EXECUTE ON sys.xp_instance_regread TO [SCOM_HealthService];
 GRANT SELECT ON sys.database_mirroring_witnesses TO [SCOM_HealthService];
 
-/* msdb database user, role, and role membership */
+/* msdb database user, role, role membership and permissions */
 USE [msdb];
 SET @createDatabaseUserAndRole = '';
 SELECT @createDatabaseUserAndRole = @createDatabaseUserAndRole + ';
