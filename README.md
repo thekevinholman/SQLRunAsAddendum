@@ -10,7 +10,7 @@ https://kevinholman.com/2016/08/25/sql-mp-run-as-accounts-no-longer-required/
 
 * Version 7.0.42.0
   * Updated permissions for low-privileged service account to comply with new MP features
-  * Added GRANT CONNECT ANY DATABASE
+  * Added GRANT CONNECT ANY DATABASE privilege (avoids creating user/role in every database)
   * Create Low Privileged user task checks for existence of login/user/role before creating (task can be re-executed)
 * Version 7.0.36.1
   * Changed the server role to be added with AUTHORIZATION to support customers who rename SA account.

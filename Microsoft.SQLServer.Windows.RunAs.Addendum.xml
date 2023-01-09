@@ -413,7 +413,7 @@ EXEC(@createDatabaseUserAndRole);
 GRANT VIEW ANY DATABASE TO [SCOM_HealthService];
 GRANT VIEW ANY DEFINITION TO [SCOM_HealthService];
 GRANT VIEW SERVER STATE TO [SCOM_HealthService];
-GRANT CONNECT ANY DATABASE TO [NT SERVICE\HealthService];
+GRANT CONNECT ANY DATABASE TO [SCOM_HealthService];
 GRANT EXECUTE ON sys.xp_readerrorlog TO [SCOM_HealthService];
 GRANT EXECUTE ON sys.xp_instance_regread TO [SCOM_HealthService];
 GRANT SELECT ON sys.database_mirroring_witnesses TO [SCOM_HealthService];
