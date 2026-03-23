@@ -1,4 +1,4 @@
-# SQLRunAsAddendum 7.0.42.0
+# SQLRunAsAddendum 7.12.1619.0
 
 ## [Download Here][Download]
 
@@ -8,6 +8,8 @@ SQL Server RunAs Addendum Management Pack for SCOM
 
 https://kevinholman.com/2016/08/25/sql-mp-run-as-accounts-no-longer-required/
 
+* Version 7.12.1619.0
+  * Updated SQL WMI MOFCOMP repair task to support SQL 2025  
 * Version 7.0.42.0
   * Updated SQL script permissions to be compatible with new SQL MP 7.0.42.0 requirements
   * Updated SQL WMI MOFCOMP repair task to support SQL 2022  
