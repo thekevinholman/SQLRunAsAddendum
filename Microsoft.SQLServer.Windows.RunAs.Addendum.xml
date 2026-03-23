@@ -2,7 +2,7 @@
   <Manifest>
     <Identity>
       <ID>Microsoft.SQLServer.Windows.RunAs.Addendum</ID>
-      <Version>7.0.42.0</Version>
+      <Version>7.12.1619.0</Version>
     </Identity>
     <Name>Microsoft.SQLServer.Windows.RunAs.Addendum</Name>
     <References>
@@ -565,11 +565,11 @@ $momapi.LogScriptEvent($ScriptName,$EventID,0,"`n Script Completed. `n Script Ru
                 <ScriptName>Microsoft.SQLServer.Windows.RunAs.Addendum.RepairSQLWMIMofcomp.WA.ps1</ScriptName>
                 <ScriptBody>
 #=================================================================================
-#  Repair SQL WMI namespace using MOFCOMP for SQL 2008 - SQL 2022
+#  Repair SQL WMI namespace using MOFCOMP for SQL 2008 - SQL 2025
 #  Script will attempt to loop through all known versions of SQL and repair WMI.
 #
 #  Author: Kevin Holman
-#  v1.1
+#  v1.2
 #=================================================================================
 
 
@@ -703,6 +703,20 @@ IF (Test-Path $ProgramFilesx86Path)
     mofcomp $SQL2022MOFPath
   }
 
+  #Test for SQL 2025
+  $SQL2025MOFPath = "$ProgramFilesx86Path\Microsoft SQL Server\170\Shared\sqlmgmprovider.mof"
+  $SQL2025MOF = Test-Path $SQL2025MOFPath
+  IF ($SQL2025MOF)
+  {
+    Write-Host "`nSQL 2025 MOF File Found."
+    $Recompile = $true
+    Write-Host "`nStopping WMI service..."
+    Stop-Service winmgmt -force
+    Write-Host "`nAttempting MOF Recompile using mofcomp..."
+    $momapi.LogScriptEvent($ScriptName,$EventID,0,"`nSQL MOF file found at ($SQL2025MOFPath). `nMofcomp will execute to repair WMI namespace.")
+    mofcomp $SQL2025MOFPath
+  }
+
 }
 ELSE
 {
@@ -735,6 +749,7 @@ $ScriptTime = ($EndTime - $StartTime).TotalSeconds
 $momapi.LogScriptEvent($ScriptName,$EventID,0,"`nScript Completed. `nRuntime: ($ScriptTime) seconds.")
 #=================================================================================
 # End of script	
+
                 </ScriptBody>
                 <TimeoutSeconds>120</TimeoutSeconds>
               </WriteAction>
